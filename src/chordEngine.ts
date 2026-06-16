@@ -2,8 +2,17 @@
 import type { Section, SongLine, Chord } from './types';
 
 const PARTS = /^([A-G][#b]?)([^/]*)(?:\/([A-G][#b]?))?$/;
+// aceita sufixos em qualquer ordem: G7M, D9, D4, G7+, B7(4/9), A/C#, Cmaj7...
 const CHORD_TOK =
-  /^[A-G][#b]?(?:m|maj|min|M|dim|aug|sus|add|º|°)?[0-9]*(?:\([^)]*\))?(?:sus[0-9]*|add[0-9]*|[#b][0-9]+)*(?:\/[A-G][#b]?)?$/;
+  /^[A-G][#b]?(?:maj|min|m|M|dim|aug|sus|add|º|°|[0-9]+|[+\-]|[#b][0-9]+|\([^)]*\)|\/[A-G][#b]?)*$/;
+
+// remove parêntese DESBALANCEADO de um token: "(D9"->"D9", "D4)"->"D4";
+// mantém balanceados: "B7(4/9)" e "A7(13)" intactos.
+function fixParens(t: string): string {
+  if (t.startsWith('(') && !t.includes(')')) t = t.slice(1);
+  if (t.endsWith(')') && !t.slice(0, -1).includes('(')) t = t.slice(0, -1);
+  return t;
+}
 const INLINE_CHORD = /\[[A-G][#b]?[^\]]*\]/;
 const SECTION_HEAD = /^\s*\[([^\]]+)\]\s*(.*)$/;
 
@@ -55,7 +64,7 @@ function isChord(t: string): boolean {
 function isChordLine(line: string): boolean {
   const toks = line.match(/\S+/g);
   if (!toks || toks.length === 0) return false;
-  return toks.every(isChord);
+  return toks.every((t) => isChord(fixParens(t)));
 }
 
 function mergeChordLyric(chordLine: string, lyric: string): SongLine {
@@ -64,7 +73,7 @@ function mergeChordLyric(chordLine: string, lyric: string): SongLine {
   const re = /\S+/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(chordLine)) !== null) {
-    chords.push({ sym: m[0], idx: m.index });
+    chords.push({ sym: fixParens(m[0]), idx: m.index });
     if (m.index > maxCol) maxCol = m.index;
   }
   let lyr = lyric;
