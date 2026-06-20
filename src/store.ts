@@ -88,7 +88,7 @@ const now = () => new Date().toISOString();
 export function newSong(): Song {
   const s: Song = {
     id: uid(), title: 'Nova música', artist: '', key: 'C', capo: 0,
-    sections: [], tags: [], notes: '', updatedAt: now(),
+    sections: [], tags: [], notes: '', bpm: 0, updatedAt: now(),
   };
   state.data.songs.unshift(s);
   state.dirty = true;

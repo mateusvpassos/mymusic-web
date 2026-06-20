@@ -13,6 +13,7 @@ export interface Song {
   sections: Section[];
   tags: string[];
   notes: string;
+  bpm: number;
   updatedAt: string; // ISO8601
 }
 
@@ -45,7 +46,7 @@ export interface RawLine { l: string; c: RawChord[] }
 export interface RawSection { n: string; l: RawLine[] }
 export interface RawSong {
   id: string; title: string; artist?: string; key?: string; capo?: number;
-  sections?: RawSection[]; tags?: string[]; notes?: string; updatedAt?: string;
+  sections?: RawSection[]; tags?: string[]; notes?: string; bpm?: number; updatedAt?: string;
 }
 export interface RawSetlist {
   id: string; name: string; songIds?: string[];
@@ -73,6 +74,7 @@ export function songFromRaw(j: RawSong): Song {
     })),
     tags: j.tags ?? [],
     notes: j.notes ?? '',
+    bpm: j.bpm ?? 0,
     updatedAt: j.updatedAt ?? new Date().toISOString(),
   };
 }
@@ -93,6 +95,7 @@ export function songToRaw(s: Song): RawSong {
     })),
     tags: s.tags,
     notes: s.notes,
+    bpm: s.bpm,
     updatedAt: s.updatedAt,
   };
 }
