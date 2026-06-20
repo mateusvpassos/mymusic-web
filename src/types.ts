@@ -12,6 +12,7 @@ export interface Song {
   capo: number;
   sections: Section[];
   tags: string[];
+  notes: string;
   updatedAt: string; // ISO8601
 }
 
@@ -20,6 +21,7 @@ export interface Setlist {
   name: string;
   songIds: string[];
   transpose: Record<string, number>;
+  date: string | null;
   updatedAt: string;
 }
 
@@ -43,11 +45,11 @@ export interface RawLine { l: string; c: RawChord[] }
 export interface RawSection { n: string; l: RawLine[] }
 export interface RawSong {
   id: string; title: string; artist?: string; key?: string; capo?: number;
-  sections?: RawSection[]; tags?: string[]; updatedAt?: string;
+  sections?: RawSection[]; tags?: string[]; notes?: string; updatedAt?: string;
 }
 export interface RawSetlist {
   id: string; name: string; songIds?: string[];
-  transpose?: Record<string, number>; updatedAt?: string;
+  transpose?: Record<string, number>; date?: string | null; updatedAt?: string;
 }
 export interface RawData {
   songs?: RawSong[];
@@ -70,6 +72,7 @@ export function songFromRaw(j: RawSong): Song {
       })),
     })),
     tags: j.tags ?? [],
+    notes: j.notes ?? '',
     updatedAt: j.updatedAt ?? new Date().toISOString(),
   };
 }
@@ -89,6 +92,7 @@ export function songToRaw(s: Song): RawSong {
       })),
     })),
     tags: s.tags,
+    notes: s.notes,
     updatedAt: s.updatedAt,
   };
 }
@@ -99,6 +103,7 @@ export function setlistFromRaw(j: RawSetlist): Setlist {
     name: j.name,
     songIds: j.songIds ?? [],
     transpose: j.transpose ?? {},
+    date: j.date ?? null,
     updatedAt: j.updatedAt ?? new Date().toISOString(),
   };
 }
@@ -106,7 +111,7 @@ export function setlistFromRaw(j: RawSetlist): Setlist {
 export function setlistToRaw(s: Setlist): RawSetlist {
   return {
     id: s.id, name: s.name, songIds: s.songIds,
-    transpose: s.transpose, updatedAt: s.updatedAt,
+    transpose: s.transpose, date: s.date, updatedAt: s.updatedAt,
   };
 }
 

@@ -88,7 +88,7 @@ const now = () => new Date().toISOString();
 export function newSong(): Song {
   const s: Song = {
     id: uid(), title: 'Nova música', artist: '', key: 'C', capo: 0,
-    sections: [], tags: [], updatedAt: now(),
+    sections: [], tags: [], notes: '', updatedAt: now(),
   };
   state.data.songs.unshift(s);
   state.dirty = true;
@@ -109,7 +109,7 @@ export function deleteSong(id: string) {
 }
 
 export function newSetlist(name: string): Setlist {
-  const sl: Setlist = { id: uid(), name, songIds: [], transpose: {}, updatedAt: now() };
+  const sl: Setlist = { id: uid(), name, songIds: [], transpose: {}, date: null, updatedAt: now() };
   state.data.setlists.unshift(sl);
   state.dirty = true;
   return sl;
