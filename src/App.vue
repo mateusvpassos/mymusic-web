@@ -3,7 +3,7 @@ import { ref, computed } from 'vue';
 import * as store from './store';
 import { state } from './store';
 import { serializeSections, importText, suggestKey } from './chordEngine';
-import type { Song, Setlist } from './types';
+import type { Song, Setlist, SongLine } from './types';
 
 const tab = ref<'songs' | 'setlists'>('songs');
 const query = ref('');
@@ -45,6 +45,19 @@ function applySong() {
 }
 function removeSong(s: Song) {
   if (confirm(`Excluir "${s.title}"?`)) store.deleteSong(s.id);
+}
+
+// ---- preview ao vivo (acorde acima da letra, monospace = alinha por coluna) ----
+const preview = computed(() => importText(editText.value));
+function chordRow(line: SongLine): string {
+  const sorted = [...line.chords].sort((a, b) => a.idx - b.idx);
+  let row = '';
+  for (const c of sorted) {
+    if (row.length < c.idx) row = row.padEnd(c.idx);
+    else if (row.length > 0) row += ' '; // anti-sobreposição
+    row += c.sym;
+  }
+  return row;
 }
 function addTag() {
   const t = tagInput.value.trim().toLowerCase();
@@ -174,7 +187,20 @@ function setTranspose(sl: Setlist, id: string, v: number) {
           <input v-model="tagInput" placeholder="+ tag" @keyup.enter="addTag" />
         </div>
         <label>Cifra (acordes acima da letra, ou <code>[G]</code> antes da sílaba; <code>#Seção</code> = seção)</label>
-        <textarea v-model="editText" spellcheck="false" placeholder="Cole a cifra aqui…"></textarea>
+        <div class="editor-split">
+          <textarea v-model="editText" spellcheck="false" placeholder="Cole a cifra aqui…"></textarea>
+          <div class="preview">
+            <div class="preview-label">Prévia</div>
+            <div v-if="!preview.length" class="preview-empty">A prévia aparece aqui…</div>
+            <template v-for="(sec, si) in preview" :key="si">
+              <div v-if="sec.name" class="pv-section">{{ sec.name }}</div>
+              <div v-for="(line, li) in sec.lines" :key="li" class="pv-line">
+                <div v-if="line.chords.length" class="pv-chords">{{ chordRow(line) }}</div>
+                <div class="pv-lyric">{{ line.lyric || ' ' }}</div>
+              </div>
+            </template>
+          </div>
+        </div>
         <div class="actions">
           <button class="ghost" @click="editing = null">Cancelar</button>
           <button class="primary" @click="applySong">OK</button>
@@ -245,6 +271,17 @@ h1 { font-size: 22px; margin: 0; }
 .tags-edit input { width: 90px; }
 label { color: var(--muted); font-size: 13px; }
 textarea { min-height: 320px; font-family: ui-monospace, monospace; font-size: 13px; line-height: 1.45; resize: vertical; }
+.editor-split { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: stretch; }
+.editor-split textarea { min-height: 340px; height: 100%; }
+.preview { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; overflow: auto; max-height: 60vh; font-family: ui-monospace, monospace; font-size: 13px; line-height: 1.4; }
+.preview-label { font-family: system-ui, sans-serif; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); margin-bottom: 8px; }
+.preview-empty { color: var(--muted); font-family: system-ui, sans-serif; font-size: 13px; }
+.pv-section { color: var(--accent); font-weight: 700; margin: 12px 0 4px; font-family: system-ui, sans-serif; }
+.pv-section:first-child { margin-top: 0; }
+.pv-line { margin-bottom: 2px; }
+.pv-chords { color: var(--accent); font-weight: 700; white-space: pre; }
+.pv-lyric { white-space: pre; }
+@media (max-width: 680px) { .editor-split { grid-template-columns: 1fr; } }
 .actions { display: flex; justify-content: flex-end; gap: 8px; }
 .setlist { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
 .setlist li { display: flex; align-items: center; gap: 8px; background: var(--card); border-radius: 8px; padding: 6px 8px; }
