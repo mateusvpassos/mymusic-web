@@ -16,6 +16,89 @@ function fixParens(t: string): string {
 const INLINE_CHORD = /\[[A-G][#b]?[^\]]*\]/;
 const SECTION_HEAD = /^\s*\[([^\]]+)\]\s*(.*)$/;
 
+const HTML_TAG = /<[^>]*>/g;
+const TAG_RESIDUE = /^[^<>]*>/;
+const CC_TRAILING = /^\s*["']?>\s*(\S.*)$/;
+
+// Tags viram espaços p/ preservar a coluna do acorde; entidades decodificadas.
+function stripTags(line: string): string {
+  return line
+    .replace(HTML_TAG, (m) => ' '.repeat(m.length))
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+}
+
+// Rede de segurança: sobrou fragmento de tag antes de um acorde -> vira espaço.
+function stripResidue(line: string): string {
+  const m = TAG_RESIDUE.exec(line);
+  if (!m) return line;
+  const cand = ' '.repeat(m[0].length) + line.slice(m[0].length);
+  return isChordLine(cand) ? cand : line;
+}
+
+function isSectionLine(l: string): boolean {
+  return l.startsWith('#') || SECTION_HEAD.test(l);
+}
+
+// Conserta o artefato de copiar/colar do Cifra Club: acorde que cairia depois
+// do fim da letra vem em linha própria prefixada por `">`, seguido de uma
+// repetição do trecho inteiro. Junta o acorde e descarta a duplicata.
+function fixCifraClub(lines: string[]): string[] {
+  const out: string[] = [];
+  let i = 0;
+  while (i < lines.length) {
+    const m = CC_TRAILING.exec(lines[i]);
+    const sym = m ? m[1].replace(/\s+$/, '') : null;
+    if (sym === null || !isChordLine(sym)) {
+      out.push(lines[i++]);
+      continue;
+    }
+
+    // letra dona do acorde: última linha de letra antes (pulando linhas em
+    // branco e cabeçalhos de seção, que também vêm duplicados)
+    let j = out.length - 1;
+    while (j >= 0 && (out[j].trim() === '' || isSectionLine(out[j]))) j--;
+    if (j < 0 || isChordLine(out[j])) {
+      out.push(lines[i++]);
+      continue;
+    }
+    const lyric = out[j];
+    const block = out.slice(j + 1);
+
+    // confere se logo abaixo vem a repetição: letra + mesmo bloco
+    let k = i + 1;
+    let dup = k < lines.length && lines[k] === lyric;
+    if (dup) {
+      k++;
+      for (const b of block) {
+        if (k >= lines.length || lines[k] !== b) {
+          dup = false;
+          break;
+        }
+        k++;
+      }
+    }
+    if (!dup) {
+      out.push(lines[i++]);
+      continue;
+    }
+
+    // anexa o acorde no fim da linha de acordes da letra
+    const col = lyric.length + 1;
+    if (j > 0 && isChordLine(out[j - 1])) {
+      out[j - 1] = out[j - 1].padEnd(col) + sym;
+    } else {
+      out.splice(j, 0, ''.padEnd(col) + sym);
+    }
+    i = k; // descarta a duplicata
+  }
+  return out;
+}
+
 export function parseLine(raw: string): SongLine {
   const chords: Chord[] = [];
   let lyric = '';
@@ -83,7 +166,9 @@ function mergeChordLyric(chordLine: string, lyric: string): SongLine {
 
 // Aceita ChordPro [C]letra OU "acorde acima da letra" (Cifra Club).
 export function importText(text: string): Section[] {
-  const raw = text.replace(/\r/g, '').split('\n');
+  const raw = fixCifraClub(
+    text.replace(/\r/g, '').split('\n').map(stripTags),
+  ).map(stripResidue);
   const sections: Section[] = [];
   let cur: Section = { name: '', lines: [] };
   let started = false;
