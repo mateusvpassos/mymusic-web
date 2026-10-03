@@ -1,7 +1,7 @@
 import { reactive } from 'vue';
 import type { Song, Setlist, AppData, RawData } from './types';
 import {
-  songFromRaw, songToRaw, setlistFromRaw, setlistToRaw, defaultSettings,
+  songFromRaw, songToRaw, setlistFromRaw, setlistToRaw, defaultSettings, emptyMeta,
 } from './types';
 import { uid } from './chordEngine';
 import * as drive from './drive';
@@ -134,7 +134,7 @@ export function draftSong(): Song {
   return {
     id: uid(), title: 'Nova música', artist: '', key: 'C', capo: 0,
     sections: [], tags: [], notes: '', bpm: 0, scrollSpeed: 0,
-    tempos: [], momentos: [], updatedAt: now(),
+    tempos: [], momentos: [], versao: 0, ...emptyMeta(), updatedAt: now(),
   };
 }
 
@@ -162,7 +162,9 @@ export function deleteSong(id: string) {
 }
 
 export function newSetlist(name: string): Setlist {
-  const sl: Setlist = { id: uid(), name, songIds: [], transpose: {}, moments: {}, date: null, updatedAt: now() };
+  const sl: Setlist = {
+    id: uid(), name, songIds: [], transpose: {}, moments: {}, date: null, ...emptyMeta(), updatedAt: now(),
+  };
   state.data.setlists.unshift(sl);
   state.dirty = true;
   return sl;

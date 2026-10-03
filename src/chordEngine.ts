@@ -43,6 +43,9 @@ const ANNOT_TOK =
 function isChord(t: string): boolean {
   return t.length > 0 && CHORD_TOK.test(t);
 }
+/** Acorde de verdade (não marcação tipo (2x), |, N.C.) — barra de acordes da tela. */
+export const isChordSymbol = (t: string) => isChord(t);
+
 function isAnnot(t: string): boolean {
   return t.length > 0 && ANNOT_TOK.test(t);
 }

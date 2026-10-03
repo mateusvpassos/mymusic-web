@@ -4,7 +4,16 @@ export interface Chord { sym: string; idx: number }
 export interface SongLine { lyric: string; chords: Chord[] }
 export interface Section { name: string; lines: SongLine[] }
 
-export interface Song {
+/** Campos da nuvem (grupo compartilhado). Vazios = só local/Drive. */
+export interface CloudMeta {
+  dono: string;
+  donoNome: string;
+  editores: string[];
+  por: string;
+  porNome: string;
+}
+
+export interface Song extends CloudMeta {
   id: string;
   title: string;
   artist: string;
@@ -19,10 +28,11 @@ export interface Song {
   /** tempos litúrgicos (vazio = qualquer) e momentos da Missa */
   tempos: string[];
   momentos: string[];
+  versao: number;
   updatedAt: string; // ISO8601
 }
 
-export interface Setlist {
+export interface Setlist extends CloudMeta {
   id: string;
   name: string;
   songIds: string[];
@@ -47,16 +57,19 @@ export interface AppData {
   settings: AppSettings;
 }
 
-// ---- JSON bruto (como gravado no Drive) ----
+// ---- JSON bruto (como gravado no Drive / Firestore) ----
 export interface RawChord { s: string; i: number }
 export interface RawLine { l: string; c: RawChord[] }
 export interface RawSection { n: string; l: RawLine[] }
-export interface RawSong {
+interface RawMeta {
+  dono?: string; donoNome?: string; editores?: string[]; por?: string; porNome?: string;
+}
+export interface RawSong extends RawMeta {
   id: string; title: string; artist?: string; key?: string; capo?: number;
   sections?: RawSection[]; tags?: string[]; notes?: string; bpm?: number; updatedAt?: string;
-  scrollSpeed?: number; tempos?: string[]; momentos?: string[];
+  scrollSpeed?: number; tempos?: string[]; momentos?: string[]; versao?: number;
 }
-export interface RawSetlist {
+export interface RawSetlist extends RawMeta {
   id: string; name: string; songIds?: string[];
   transpose?: Record<string, number>; date?: string | null; updatedAt?: string;
   moments?: Record<string, string>;
@@ -69,6 +82,27 @@ export interface RawData {
   audit?: unknown[];
   /** lápides de exclusão: 'song:<id>' / 'setlist:<id>' -> ISO */
   deleted?: Record<string, string>;
+}
+
+function metaFromRaw(j: RawMeta): CloudMeta {
+  return {
+    dono: j.dono ?? '',
+    donoNome: j.donoNome ?? '',
+    editores: j.editores ?? [],
+    por: j.por ?? '',
+    porNome: j.porNome ?? '',
+  };
+}
+
+// mesmas regras do app: só grava quando tem valor
+function metaToRaw(m: CloudMeta): RawMeta {
+  return {
+    ...(m.dono ? { dono: m.dono } : {}),
+    ...(m.donoNome ? { donoNome: m.donoNome } : {}),
+    ...(m.editores.length ? { editores: m.editores } : {}),
+    ...(m.por ? { por: m.por } : {}),
+    ...(m.porNome ? { porNome: m.porNome } : {}),
+  };
 }
 
 export function songFromRaw(j: RawSong): Song {
@@ -91,6 +125,8 @@ export function songFromRaw(j: RawSong): Song {
     scrollSpeed: j.scrollSpeed ?? 0,
     tempos: j.tempos ?? [],
     momentos: j.momentos ?? [],
+    versao: j.versao ?? 0,
+    ...metaFromRaw(j),
     updatedAt: j.updatedAt ?? new Date().toISOString(),
   };
 }
@@ -112,10 +148,11 @@ export function songToRaw(s: Song): RawSong {
     tags: s.tags,
     notes: s.notes,
     bpm: s.bpm,
-    // mesmas regras do app: só grava quando tem valor
     ...(s.scrollSpeed > 0 ? { scrollSpeed: s.scrollSpeed } : {}),
     ...(s.tempos.length ? { tempos: s.tempos } : {}),
     ...(s.momentos.length ? { momentos: s.momentos } : {}),
+    ...metaToRaw(s),
+    ...(s.versao > 0 ? { versao: s.versao } : {}),
     updatedAt: s.updatedAt,
   };
 }
@@ -128,6 +165,7 @@ export function setlistFromRaw(j: RawSetlist): Setlist {
     transpose: j.transpose ?? {},
     moments: j.moments ?? {},
     date: j.date ?? null,
+    ...metaFromRaw(j),
     updatedAt: j.updatedAt ?? new Date().toISOString(),
   };
 }
@@ -135,10 +173,16 @@ export function setlistFromRaw(j: RawSetlist): Setlist {
 export function setlistToRaw(s: Setlist): RawSetlist {
   return {
     id: s.id, name: s.name, songIds: s.songIds,
-    transpose: s.transpose, date: s.date, updatedAt: s.updatedAt,
+    transpose: s.transpose,
     ...(Object.keys(s.moments).length ? { moments: s.moments } : {}),
+    ...metaToRaw(s),
+    date: s.date, updatedAt: s.updatedAt,
   };
 }
+
+export const emptyMeta = (): CloudMeta => ({
+  dono: '', donoNome: '', editores: [], por: '', porNome: '',
+});
 
 export const defaultSettings = (): AppSettings => ({
   seedColor: 0xff3d5afe,
