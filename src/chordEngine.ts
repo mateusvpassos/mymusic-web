@@ -1,10 +1,59 @@
 // Porta do chord_engine.dart — parser ChordPro + acorde-sobre-letra, serialize, import.
+// Mudança lá tem que vir pra cá também (o app e o editor web gravam o mesmo JSON).
 import type { Section, SongLine, Chord } from './types';
 
-const PARTS = /^([A-G][#b]?)([^/]*)(?:\/([A-G][#b]?))?$/;
-// aceita sufixos em qualquer ordem: G7M, D9, D4, G7+, B7(4/9), A/C#, Cmaj7...
+export interface SongMeta {
+  title?: string;
+  artist?: string;
+  key?: string;
+  capo?: number;
+}
+
+const SHARP = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+const FLAT = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+const ENHARM: Record<string, number> = { Cb: 11, Fb: 4, 'E#': 5, 'B#': 0 };
+
+function noteId(n: string): number {
+  const i = SHARP.indexOf(n);
+  if (i >= 0) return i;
+  const j = FLAT.indexOf(n);
+  return j >= 0 ? j : ENHARM[n] ?? -1;
+}
+
+export function transposeNote(note: string, steps: number, useFlat: boolean): string {
+  const i = noteId(note);
+  if (i < 0) return note;
+  const j = (((i + steps) % 12) + 12) % 12;
+  return (useFlat ? FLAT : SHARP)[j];
+}
+
+// Raiz + qualidade + baixo opcional. O meio é preguiçoso e o baixo só conta
+// se for uma NOTA: "D7/9" é tensão, "D/F#" é baixo.
+const PARTS = /^([A-G][#b]?)(.*?)(?:\/([A-G][#b]?))?$/;
+
+// aceita sufixos em qualquer ordem: G7M, D9, D4, G7+, B7(4/9), A/C#, Cmaj7,
+// D7/9 (tensão com barra), Bø, Cº...
 const CHORD_TOK =
-  /^[A-G][#b]?(?:maj|min|m|M|dim|aug|sus|add|º|°|[0-9]+|[+\-]|[#b][0-9]+|\([^)]*\)|\/[A-G][#b]?)*$/;
+  /^[A-G][#b]?(?:maj|min|m|M|dim|aug|sus|add|º|°|ø|[0-9]+|[+\-]|[#b][0-9]+|\([^)]*\)|\/[A-G][#b]?|\/[#b+\-]?[0-9]+[+\-]?)*$/;
+
+// marcações no meio das linhas de acorde: (2x), x2, bis, |, -, /, N.C., %
+const ANNOT_TOK =
+  /^(?:\(?\s*(?:\d+\s*[xX]|[xX]\s*\d+|bis|Bis|BIS)\s*\)?|\|+:?|:?\|+|[-–—]+|\/+|\.{2,}|%|N\.?C\.?)$/;
+
+function isChord(t: string): boolean {
+  return t.length > 0 && CHORD_TOK.test(t);
+}
+function isAnnot(t: string): boolean {
+  return t.length > 0 && ANNOT_TOK.test(t);
+}
+
+export function transposeChord(sym: string, steps: number, useFlat: boolean): string {
+  if (!isChord(sym)) return sym;
+  const m = PARTS.exec(sym);
+  if (!m) return sym;
+  const bass = m[3] ? '/' + transposeNote(m[3], steps, useFlat) : '';
+  return transposeNote(m[1], steps, useFlat) + (m[2] ?? '') + bass;
+}
 
 // remove parêntese DESBALANCEADO de um token: "(D9"->"D9", "D4)"->"D4";
 // mantém balanceados: "B7(4/9)" e "A7(13)" intactos.
@@ -13,90 +62,48 @@ function fixParens(t: string): string {
   if (t.endsWith(')') && !t.slice(0, -1).includes('(')) t = t.slice(0, -1);
   return t;
 }
-const INLINE_CHORD = /\[[A-G][#b]?[^\]]*\]/;
-const SECTION_HEAD = /^\s*\[([^\]]+)\]\s*(.*)$/;
 
-const HTML_TAG = /<[^>]*>/g;
-const TAG_RESIDUE = /^[^<>]*>/;
-const CC_TRAILING = /^\s*["']?>\s*(\S.*)$/;
-
-// Tags viram espaços p/ preservar a coluna do acorde; entidades decodificadas.
-function stripTags(line: string): string {
-  return line
-    .replace(HTML_TAG, (m) => ' '.repeat(m.length))
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'");
-}
-
-// Rede de segurança: sobrou fragmento de tag antes de um acorde -> vira espaço.
-function stripResidue(line: string): string {
-  const m = TAG_RESIDUE.exec(line);
-  if (!m) return line;
-  const cand = ' '.repeat(m[0].length) + line.slice(m[0].length);
-  return isChordLine(cand) ? cand : line;
-}
-
-function isSectionLine(l: string): boolean {
-  return l.startsWith('#') || SECTION_HEAD.test(l);
-}
-
-// Conserta o artefato de copiar/colar do Cifra Club: acorde que cairia depois
-// do fim da letra vem em linha própria prefixada por `">`, seguido de uma
-// repetição do trecho inteiro. Junta o acorde e descarta a duplicata.
-function fixCifraClub(lines: string[]): string[] {
-  const out: string[] = [];
-  let i = 0;
-  while (i < lines.length) {
-    const m = CC_TRAILING.exec(lines[i]);
-    const sym = m ? m[1].replace(/\s+$/, '') : null;
-    if (sym === null || !isChordLine(sym)) {
-      out.push(lines[i++]);
-      continue;
-    }
-
-    // letra dona do acorde: última linha de letra antes (pulando linhas em
-    // branco e cabeçalhos de seção, que também vêm duplicados)
-    let j = out.length - 1;
-    while (j >= 0 && (out[j].trim() === '' || isSectionLine(out[j]))) j--;
-    if (j < 0 || isChordLine(out[j])) {
-      out.push(lines[i++]);
-      continue;
-    }
-    const lyric = out[j];
-    const block = out.slice(j + 1);
-
-    // confere se logo abaixo vem a repetição: letra + mesmo bloco
-    let k = i + 1;
-    let dup = k < lines.length && lines[k] === lyric;
-    if (dup) {
-      k++;
-      for (const b of block) {
-        if (k >= lines.length || lines[k] !== b) {
-          dup = false;
-          break;
-        }
-        k++;
-      }
-    }
-    if (!dup) {
-      out.push(lines[i++]);
-      continue;
-    }
-
-    // anexa o acorde no fim da linha de acordes da letra
-    const col = lyric.length + 1;
-    if (j > 0 && isChordLine(out[j - 1])) {
-      out[j - 1] = out[j - 1].padEnd(col) + sym;
-    } else {
-      out.splice(j, 0, ''.padEnd(col) + sym);
-    }
-    i = k; // descarta a duplicata
+/** Linha só de acordes (e marcações), com pelo menos um acorde de verdade. */
+function isChordLine(line: string): boolean {
+  const toks = line.match(/\S+/g);
+  if (!toks || toks.length === 0) return false;
+  let temAcorde = false;
+  for (const t of toks) {
+    if (isAnnot(t)) continue;
+    if (!isChord(fixParens(t))) return false;
+    temAcorde = true;
   }
-  return out;
+  return temAcorde;
+}
+
+function mergeChordLyric(chordLine: string, lyric: string): SongLine {
+  const chords: Chord[] = [];
+  let maxCol = 0;
+  const re = /\S+/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(chordLine)) !== null) {
+    chords.push({ sym: isAnnot(m[0]) ? m[0] : fixParens(m[0]), idx: m.index });
+    if (m.index > maxCol) maxCol = m.index;
+  }
+  let lyr = lyric;
+  if (lyr.length < maxCol) lyr = lyr.padEnd(maxCol);
+  return { lyric: lyr, chords };
+}
+
+// ---- colchetes inline ([G]letra) ----
+
+// "[Bis]", "[Fim]", "[Ad lib]" no meio da letra são texto, não acorde.
+const PALAVRA = /^[A-Za-zÀ-ÿ][a-zà-ÿ]{2,}$/;
+function bracketIsText(c: string): boolean {
+  if (isChord(fixParens(c))) return false;
+  return c.trim() === '' || /\s/.test(c) || PALAVRA.test(c);
+}
+
+function hasInlineChord(line: string): boolean {
+  const re = /\[([^\]]*)\]/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(line)) !== null) if (!bracketIsText(m[1])) return true;
+  return false;
 }
 
 export function parseLine(raw: string): SongLine {
@@ -107,9 +114,12 @@ export function parseLine(raw: string): SongLine {
     if (raw[i] === '[') {
       const end = raw.indexOf(']', i);
       if (end > i) {
-        chords.push({ sym: raw.slice(i + 1, end), idx: lyric.length });
-        i = end + 1;
-        continue;
+        const c = raw.slice(i + 1, end);
+        if (!bracketIsText(c)) {
+          chords.push({ sym: c, idx: lyric.length });
+          i = end + 1;
+          continue;
+        }
       }
     }
     lyric += raw[i];
@@ -140,60 +150,225 @@ export function serializeSections(sections: Section[]): string {
     .join('\n\n');
 }
 
-function isChord(t: string): boolean {
-  return t.length > 0 && CHORD_TOK.test(t);
+// ---- limpeza do texto colado ----
+
+const INLINE_CHORD = /\[[A-G][#b]?[^\]]*\]/;
+const SECTION_HEAD = /^\s*\[([^\]]+)\]\s*(.*)$/;
+const HTML_TAG = /<[^>]*>/g;
+const TAG_RESIDUE = /^[^<>]*>/;
+const CC_TRAILING = /^\s*["']?>\s*(\S.*)$/;
+
+// TAB vira espaço até a próxima parada de 4 colunas — igual nas duas linhas.
+function expandTabs(s: string): string {
+  if (!s.includes('\t')) return s;
+  let b = '';
+  for (const ch of s) b += ch === '\t' ? ' '.repeat(4 - (b.length % 4)) : ch;
+  return b;
 }
 
-function isChordLine(line: string): boolean {
-  const toks = line.match(/\S+/g);
-  if (!toks || toks.length === 0) return false;
-  return toks.every((t) => isChord(fixParens(t)));
+// Tags viram espaços p/ preservar a coluna do acorde; entidades decodificadas.
+function stripTags(line: string): string {
+  return expandTabs(
+    line
+      .replace(HTML_TAG, (m) => ' '.repeat(m.length))
+      .replace(/&nbsp;/g, ' ')
+      .replace(/ /g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'"),
+  );
 }
 
-function mergeChordLyric(chordLine: string, lyric: string): SongLine {
-  const chords: Chord[] = [];
-  let maxCol = 0;
-  const re = /\S+/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(chordLine)) !== null) {
-    chords.push({ sym: fixParens(m[0]), idx: m.index });
-    if (m.index > maxCol) maxCol = m.index;
+// Rede de segurança: sobrou fragmento de tag antes de um acorde -> vira espaço.
+function stripResidue(line: string): string {
+  const m = TAG_RESIDUE.exec(line);
+  if (!m) return line;
+  const cand = ' '.repeat(m[0].length) + line.slice(m[0].length);
+  return isChordLine(cand) ? cand : line;
+}
+
+// ---- seções escritas em texto ----
+
+// "Refrão:", "REFRÃO", "1ª Parte", "Parte 2", "Primeira parte", "Intro: C G".
+// Só com palavra-chave conhecida, p/ "E Jesus disse:" continuar letra.
+const TEXT_HEAD = new RegExp(
+  '^\\s*((?:(?:\\d+\\s*[ªºa°]?|primeira|segunda|terceira|quarta|quinta|sexta|' +
+    's[ée]tima|[úu]ltima)\\s+)?' +
+    '(?:intro(?:du[çc][ãa]o)?|refr[ãa]o|pr[ée][-\\s]?refr[ãa]o|coro|ponte|solo|' +
+    'final|verso|estrofe|parte|interl[úu]dio|outro|chorus|verse|bridge|riff|pré|pre)' +
+    '(?:\\s*\\d+)?(?:\\s*\\([^)]*\\))?)\\s*:?(.*)$',
+  'i',
+);
+
+function textSection(line: string): [string, string] | null {
+  const m = TEXT_HEAD.exec(line);
+  if (!m) return null;
+  const rest = m[2];
+  if (rest.trim() !== '' && !isChordLine(rest)) return null;
+  return [m[1].trim(), rest];
+}
+
+/** "[Refrão]" / "[Intro] C G". Não vale p/ "[|] [C] [|]" (linha ChordPro). */
+function bracketSection(line: string): [string, string] | null {
+  const m = SECTION_HEAD.exec(line);
+  if (!m) return null;
+  const name = m[1].trim();
+  const rest = m[2];
+  if (isChord(fixParens(name)) || isAnnot(name) || hasInlineChord(rest)) return null;
+  return [name, rest];
+}
+
+function isSectionLine(l: string): boolean {
+  return l.startsWith('#') || bracketSection(l) !== null || textSection(l) !== null;
+}
+
+// ---- metadados ----
+
+const DIRECTIVE = /^\s*\{\s*([A-Za-z_]+)\s*(?::\s*([^}]*))?\}\s*$/;
+const TOM_LINE = /^\s*tom\s*:\s*([A-G][#b]?m?)\b/i;
+const CAPO_LINE = /^\s*capo(?:traste)?\b[^0-9\n]{0,20}(\d{1,2})/i;
+
+/** Título/artista/tom/capo achados no texto (ChordPro ou "Tom: G"). */
+export function detectMeta(text: string): SongMeta {
+  const meta: SongMeta = {};
+  for (const raw of text.replace(/\r/g, '').split('\n')) {
+    const d = DIRECTIVE.exec(raw);
+    if (d) {
+      const k = d[1].toLowerCase();
+      const v = (d[2] ?? '').trim();
+      if (!v) continue;
+      if (k === 'title' || k === 't') meta.title ??= v;
+      if (k === 'subtitle' || k === 'st' || k === 'artist') meta.artist ??= v;
+      if (k === 'key') meta.key ??= v;
+      if (k === 'capo') meta.capo ??= parseInt(v, 10) || undefined;
+      continue;
+    }
+    const t = TOM_LINE.exec(raw);
+    if (t) {
+      meta.key ??= t[1];
+      continue;
+    }
+    const c = CAPO_LINE.exec(raw);
+    if (c) meta.capo ??= parseInt(c[1], 10);
   }
-  let lyr = lyric;
-  if (lyr.length < maxCol) lyr = lyr.padEnd(maxCol);
-  return { lyric: lyr, chords };
+  return meta;
 }
+
+// Conserta o artefato de copiar/colar do Cifra Club: acorde que cairia depois
+// do fim da letra vem em linha própria prefixada por `">`, seguido de uma
+// repetição do trecho inteiro. Junta o acorde e descarta a duplicata.
+function fixCifraClub(lines: string[]): string[] {
+  const out: string[] = [];
+  let i = 0;
+  while (i < lines.length) {
+    const m = CC_TRAILING.exec(lines[i]);
+    const sym = m ? m[1].replace(/\s+$/, '') : null;
+    if (sym === null || !isChordLine(sym)) {
+      out.push(lines[i++]);
+      continue;
+    }
+
+    let j = out.length - 1;
+    while (j >= 0 && (out[j].trim() === '' || isSectionLine(out[j]))) j--;
+    if (j < 0 || isChordLine(out[j])) {
+      out.push(lines[i++]);
+      continue;
+    }
+    const lyric = out[j];
+    const block = out.slice(j + 1);
+
+    let k = i + 1;
+    let dup = k < lines.length && lines[k] === lyric;
+    if (dup) {
+      k++;
+      for (const b of block) {
+        if (k >= lines.length || lines[k] !== b) {
+          dup = false;
+          break;
+        }
+        k++;
+      }
+    }
+    if (!dup) {
+      out.push(lines[i++]);
+      continue;
+    }
+
+    const col = lyric.length + 1;
+    if (j > 0 && isChordLine(out[j - 1])) {
+      out[j - 1] = out[j - 1].padEnd(col) + sym;
+    } else {
+      out.splice(j, 0, ''.padEnd(col) + sym);
+    }
+    i = k;
+  }
+  return out;
+}
+
+const DIR_SECAO = new Set(['comment', 'c', 'ci', 'cb', 'comment_italic', 'comment_box', 'highlight']);
 
 // Aceita ChordPro [C]letra OU "acorde acima da letra" (Cifra Club).
 export function importText(text: string): Section[] {
-  const raw = fixCifraClub(
-    text.replace(/\r/g, '').split('\n').map(stripTags),
-  ).map(stripResidue);
+  const raw = fixCifraClub(text.replace(/\r/g, '').split('\n').map(stripTags)).map(stripResidue);
   const sections: Section[] = [];
   let cur: Section = { name: '', lines: [] };
   let started = false;
+  // linha em branco no fim da seção é só o separador; sem tirar, cada ida e
+  // volta texto<->modelo somava mais uma
+  const close = () => {
+    while (
+      cur.lines.length &&
+      cur.lines[cur.lines.length - 1].chords.length === 0 &&
+      cur.lines[cur.lines.length - 1].lyric.trim() === ''
+    )
+      cur.lines.pop();
+    sections.push(cur);
+  };
   const newSection = (name: string) => {
-    if (started) sections.push(cur);
+    if (started) close();
     cur = { name, lines: [] };
     started = true;
   };
+  const isLyric = (l: string | null) =>
+    l !== null && l.trim() !== '' && !isChordLine(l) && !isSectionLine(l) && !DIRECTIVE.test(l);
 
   for (let i = 0; i < raw.length; i++) {
     let line = raw[i];
+
+    const d = DIRECTIVE.exec(line);
+    if (d) {
+      const k = d[1].toLowerCase();
+      const v = (d[2] ?? '').trim();
+      if (DIR_SECAO.has(k) && v) newSection(v);
+      else if (k === 'start_of_chorus' || k === 'soc') newSection(v || 'Refrão');
+      else if (k === 'start_of_bridge' || k === 'sob') newSection(v || 'Ponte');
+      else if (k === 'start_of_verse' || k === 'sov') newSection(v);
+      continue;
+    }
+
+    if (TOM_LINE.test(line) || CAPO_LINE.test(line)) continue;
 
     if (line.startsWith('#')) {
       newSection(line.slice(1).trim());
       continue;
     }
-    const sm = SECTION_HEAD.exec(line);
-    if (sm && !isChord(sm[1].trim())) {
-      newSection(sm[1].trim());
-      const rest = sm[2];
-      if (rest.trim() === '') continue;
-      line = rest;
+    const bs = bracketSection(line);
+    if (bs) {
+      newSection(bs[0]);
+      if (bs[1].trim() === '') continue;
+      line = bs[1];
+    } else {
+      const ts = textSection(line);
+      if (ts) {
+        newSection(ts[0]);
+        if (ts[1].trim() === '') continue;
+        line = ts[1].trim();
+      }
     }
 
-    if (INLINE_CHORD.test(line)) {
+    if (INLINE_CHORD.test(line) && hasInlineChord(line)) {
       cur.lines.push(parseLine(line));
       started = true;
       continue;
@@ -201,13 +376,7 @@ export function importText(text: string): Section[] {
 
     if (isChordLine(line)) {
       const next = i + 1 < raw.length ? raw[i + 1] : null;
-      const nextIsLyric =
-        next !== null &&
-        next.trim() !== '' &&
-        !next.startsWith('#') &&
-        !isChordLine(next) &&
-        SECTION_HEAD.exec(next) === null;
-      if (nextIsLyric) {
+      if (isLyric(next)) {
         cur.lines.push(mergeChordLyric(line, next!));
         i++;
       } else {
@@ -217,19 +386,18 @@ export function importText(text: string): Section[] {
       continue;
     }
 
-    cur.lines.push({ lyric: line, chords: [] });
+    cur.lines.push(parseLine(line));
     started = true;
   }
-  if (started) sections.push(cur);
+  if (started) close();
   return sections;
 }
 
+/** Primeiro acorde de verdade (pula (2x), |, N.C.). */
 export function firstChord(sections: Section[]): string | null {
   for (const s of sections)
     for (const l of s.lines)
-      if (l.chords.length) {
-        return [...l.chords].sort((a, b) => a.idx - b.idx)[0].sym;
-      }
+      for (const c of [...l.chords].sort((a, b) => a.idx - b.idx)) if (isChord(c.sym)) return c.sym;
   return null;
 }
 
@@ -245,7 +413,5 @@ export function suggestKey(sections: Section[]): string | null {
 }
 
 export function uid(): string {
-  return (
-    Date.now().toString(36) + Math.random().toString(36).slice(2, 9)
-  );
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 9);
 }

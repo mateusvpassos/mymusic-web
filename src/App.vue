@@ -2,7 +2,7 @@
 import { ref, computed } from 'vue';
 import * as store from './store';
 import { state } from './store';
-import { serializeSections, importText, suggestKey } from './chordEngine';
+import { serializeSections, importText, suggestKey, detectMeta } from './chordEngine';
 import type { Song, Setlist, SongLine } from './types';
 
 const tab = ref<'songs' | 'setlists'>('songs');
@@ -35,7 +35,13 @@ function newSong() {
 function applySong() {
   const s = editing.value!;
   s.sections = importText(editText.value);
-  if (!s.key.trim() || s.key.trim() === 'C') {
+  // "Tom: G", "Capo 2", {title: ...} no texto colado preenchem os campos
+  const meta = detectMeta(editText.value);
+  if (meta.title && (!s.title.trim() || s.title === 'Nova música')) s.title = meta.title;
+  if (meta.artist && !s.artist.trim()) s.artist = meta.artist;
+  if (meta.capo !== undefined) s.capo = meta.capo;
+  if (meta.key) s.key = meta.key;
+  else if (!s.key.trim() || s.key.trim() === 'C') {
     const k = suggestKey(s.sections);
     if (k) s.key = k;
   }
