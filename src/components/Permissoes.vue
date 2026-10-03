@@ -1,14 +1,18 @@
 <script setup lang="ts">
 // Dono e quem mais pode editar (música ou repertório). Só o dono muda.
 import { ref, computed } from 'vue';
-import { cloud, nomeDe, souDono } from '../cloud';
+import { cloud, nomeDe as nomeGrupo, souDono, eu } from '../cloud';
+import { acervo, nomeDe as nomeAcervo } from '../acervo';
 
-const props = defineProps<{ titulo: string; dono: string; editores: string[] }>();
+const props = defineProps<{ titulo: string; dono: string; editores: string[]; acervo?: boolean }>();
 const emit = defineEmits<{ fechar: []; salvar: [emails: string[]] }>();
 const ed = ref([...props.editores]);
-const meu = computed(() => souDono(props.dono));
-const outros = computed(() => (cloud.grupo?.membros ?? []).filter((m) => m !== props.dono));
-const confiados = computed(() => cloud.confianca[props.dono] ?? []);
+// acervo: qualquer pessoa do app; grupo: só quem é do grupo
+const meu = computed(() => (props.acervo ? props.dono === eu.value : souDono(props.dono)));
+const outros = computed(() =>
+  (props.acervo ? Object.keys(acervo.nomes) : cloud.grupo?.membros ?? []).filter((m) => m !== props.dono));
+const confiados = computed(() => (props.acervo ? acervo.confianca : cloud.confianca)[props.dono] ?? []);
+const nomeDe = (e: string) => (props.acervo ? nomeAcervo(e) : nomeGrupo(e));
 
 function alterna(m: string) {
   if (!meu.value || confiados.value.includes(m)) return;

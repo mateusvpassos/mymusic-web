@@ -134,7 +134,8 @@ export function draftSong(): Song {
   return {
     id: uid(), title: 'Nova música', artist: '', key: 'C', capo: 0,
     sections: [], tags: [], notes: '', bpm: 0, scrollSpeed: 0,
-    tempos: [], momentos: [], versao: 0, ...emptyMeta(), updatedAt: now(),
+    tempos: [], momentos: [], versao: 0, obra: '', nomeVersao: '', baseId: '', baseRev: 0,
+    ...emptyMeta(), updatedAt: now(),
   };
 }
 

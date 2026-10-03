@@ -22,6 +22,8 @@ export interface Sugestao {
   por: string; porNome: string; nota: string; status: string; dono: string;
   decididoPor: string; decididoPorNome: string; motivo: string;
   em: Date | null; decididoEm: Date | null;
+  /** sugestão p/ o acervo geral (não p/ o grupo) */
+  acervo?: boolean;
 }
 
 export interface Versao {
@@ -173,8 +175,17 @@ export async function remover(email: string) {
 }
 
 export async function setConfianca(emails: string[]) {
+  if (!cloud.user || !db) return;
+  // vale p/ o acervo geral e p/ o grupo
+  setDoc(doc(db, 'confianca', eu.value), { editores: emails }).catch(falhou);
   if (!ativa.value) return;
   setDoc(doc(col('confianca'), eu.value), { editores: emails }).catch(falhou);
+}
+
+/** Só campos de ligação (de qual versão do acervo veio), sem revisão nova. */
+export function setCampos(s: Song, campos: Record<string, unknown>) {
+  if (!ativa.value || !naNuvem.songs.has(s.id) || !podeEditarSong(s)) return;
+  updateDoc(doc(col('musicas'), s.id), campos).catch(falhou);
 }
 
 function abrirGrupo(g: Grupo) {

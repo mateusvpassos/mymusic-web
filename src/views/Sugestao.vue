@@ -5,14 +5,16 @@ import DiffView from '../components/DiffView.vue';
 import Prompt from '../components/Prompt.vue';
 import { voltar } from '../nav';
 import { cloud, eu, podeEditarSong, aceitar, recusar, cancelar } from '../cloud';
+import { acervo, podeEditarA, aceitarA, recusarA, cancelarA } from '../acervo';
 import { fmtQuando } from '../core';
 import { statusTexto, statusIcone } from '../sugestoes';
 
 const props = defineProps<{ id: string }>();
-const x = computed(() => cloud.sugestoes.find((s) => s.id === props.id));
-const atual = computed(() => cloud.songs.find((s) => s.id === x.value?.songId));
+const x = computed(() => [...cloud.sugestoes, ...acervo.sugestoes].find((s) => s.id === props.id));
+const atual = computed(() => (x.value?.acervo ? acervo.musicas[x.value.songId] : cloud.songs.find((s) => s.id === x.value?.songId)));
 const podeDecidir = computed(() =>
-  !!x.value && x.value.status === 'pendente' && x.value.por !== eu.value && !!atual.value && podeEditarSong(atual.value));
+  !!x.value && x.value.status === 'pendente' && x.value.por !== eu.value && !!atual.value &&
+  (x.value.acervo ? podeEditarA(atual.value) : podeEditarSong(atual.value)));
 const minhaPendente = computed(() => !!x.value && x.value.status === 'pendente' && x.value.por === eu.value);
 const motivo = ref(false);
 </script>
@@ -38,15 +40,15 @@ const motivo = ref(false);
       <div v-if="podeDecidir || minhaPendente" class="acoes">
         <template v-if="podeDecidir">
           <button class="btn outlined" @click="motivo = true"><span class="ms">close</span>Recusar</button>
-          <button class="btn" @click="aceitar(x!); voltar()"><span class="ms">check</span>Aceitar</button>
+          <button class="btn" @click="(x!.acervo ? aceitarA : aceitar)(x!); voltar()"><span class="ms">check</span>Aceitar</button>
         </template>
-        <button v-else class="btn outlined" @click="cancelar(x!); voltar()">
+        <button v-else class="btn outlined" @click="(x!.acervo ? cancelarA : cancelar)(x!); voltar()">
           <span class="ms">undo</span>Desistir da sugestão
         </button>
       </div>
     </div>
     <Prompt v-if="motivo" titulo="Recusar sugestão" dica="Motivo (opcional)" ok="Recusar"
-      @fechar="motivo = false" @ok="(m) => { recusar(x!, m); voltar(); }" />
+      @fechar="motivo = false" @ok="(m) => { (x!.acervo ? recusarA : recusar)(x!, m); voltar(); }" />
   </div>
 </template>
 

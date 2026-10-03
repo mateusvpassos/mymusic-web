@@ -2,10 +2,16 @@
 import { ref } from 'vue';
 import AppBar from '../components/AppBar.vue';
 import { abrir } from '../nav';
-import { eu, paraDecidir, minhas } from '../cloud';
+import { computed } from 'vue';
+import { eu, paraDecidir as pdGrupo, minhas as mGrupo, type Sugestao } from '../cloud';
+import { paraDecidirA, minhasA } from '../acervo';
 import { fmtQuando } from '../core';
 import { statusTexto, statusIcone } from '../sugestoes';
 
+const porData = (a: Sugestao, b: Sugestao) => (b.em?.getTime() ?? 0) - (a.em?.getTime() ?? 0);
+// grupo + acervo numa lista só
+const paraDecidir = computed(() => [...pdGrupo.value, ...paraDecidirA.value].sort(porData));
+const minhas = computed(() => [...mGrupo.value, ...minhasA.value].sort(porData));
 const aba = ref<'decidir' | 'minhas'>(paraDecidir.value.length || !minhas.value.length ? 'decidir' : 'minhas');
 
 </script>
@@ -24,7 +30,7 @@ const aba = ref<'decidir' | 'minhas'>(paraDecidir.value.length || !minhas.value.
           @click="abrir({ nome: 'sugestao', id: x.id })">
           <span class="ms fill" :style="{ color: statusIcone(x.status).cor }">{{ statusIcone(x.status).ic }}</span>
           <div class="grow">
-            <div class="title">{{ x.titulo }}</div>
+            <div class="title">{{ x.acervo ? 'Acervo · ' : '' }}{{ x.titulo }}</div>
             <div class="sub">
               {{ [x.por !== eu ? `de ${x.porNome || x.por}` : '', fmtQuando(x.em),
                   x.status !== 'pendente' ? statusTexto(x) : '', x.nota ? `“${x.nota}”` : ''].filter(Boolean).join('  •  ') }}

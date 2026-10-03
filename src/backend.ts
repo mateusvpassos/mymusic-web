@@ -27,6 +27,13 @@ export function salvarSong(s: Song) {
   else store.putSong(s);
 }
 
+/** Muda campos de ligação (baseId/baseRev) sem contar como edição. */
+export function salvarCampos(s: Song, campos: Partial<Song>) {
+  Object.assign(s, campos);
+  if (ativa.value) nuvem.setCampos(s, campos);
+  else state.dirty = true;
+}
+
 export function excluirSong(id: string) {
   if (ativa.value) {
     nuvem.deleteSong(id);

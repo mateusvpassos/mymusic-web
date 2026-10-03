@@ -8,6 +8,7 @@ import * as be from '../backend';
 import * as store from '../store';
 import { state } from '../store';
 import { cloud, ativa, eu, nomeDe, paraDecidir, disponivel } from '../cloud';
+import { paraDecidirA } from '../acervo';
 import { searchSongs, fold, fmtData } from '../core';
 import { usoMusicas, quando, temposDe, proximoDomingo } from '../liturgia';
 import type { Song, Setlist } from '../types';
@@ -83,9 +84,12 @@ const fecharMenu = () => (menu.value = null);
   <div @click="fecharMenu">
     <AppBar titulo="MyMusic" sem-voltar>
       <template #logo><img src="/icon.png" class="logo" alt="" /></template>
-      <button v-if="ativa" class="icon-btn" title="Sugestões" @click="abrir({ nome: 'sugestoes' })">
+      <button v-if="cloud.user" class="icon-btn" title="Acervo geral" @click="abrir({ nome: 'acervo' })">
+        <span class="ms">public</span>
+      </button>
+      <button v-if="cloud.user" class="icon-btn" title="Sugestões" @click="abrir({ nome: 'sugestoes' })">
         <span class="ms">inbox</span>
-        <span v-if="paraDecidir.length" class="dot">{{ paraDecidir.length }}</span>
+        <span v-if="paraDecidir.length + paraDecidirA.length" class="dot">{{ paraDecidir.length + paraDecidirA.length }}</span>
       </button>
       <button v-if="ativa" class="icon-btn" title="Atividade recente" @click="abrir({ nome: 'atividade' })">
         <span class="ms">history</span>

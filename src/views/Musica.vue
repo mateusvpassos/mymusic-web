@@ -5,7 +5,11 @@ import ChordChart from '../components/ChordChart.vue';
 import Permissoes from '../components/Permissoes.vue';
 import { abrir, trocar, prefs } from '../nav';
 import * as be from '../backend';
-import { ativa, setEditoresSong, nomeDe, eu } from '../cloud';
+import { ativa, setEditoresSong, nomeDe, eu, cloud } from '../cloud';
+import { obras, obraDe, rotulo, baseDe, temNovidade, atualizarDoAcervo, publicar, nomeDe as nomeA } from '../acervo';
+import DiffView from '../components/DiffView.vue';
+import Prompt from '../components/Prompt.vue';
+import { resumoMudancas } from '../core';
 import { transposeSong } from '../core';
 import { isChordSymbol } from '../chordEngine';
 
@@ -77,11 +81,28 @@ function setVel(delta: number) {
 }
 
 const perm = ref(false);
+
+// ---- acervo geral ----
+const origem = computed(() => (song.value ? baseDe(song.value) : undefined));
+const novidade = computed(() => !!song.value && temNovidade(song.value));
+const verDiff = ref(false);
+const nomeNova = ref(false);
+const aviso = ref('');
+const minha = computed(() => !!song.value && (!song.value.dono || song.value.dono === eu.value));
+const diferente = computed(() => !!origem.value && !!song.value && resumoMudancas(origem.value, song.value).length > 0);
+function avisar(t: string) { aviso.value = t; setTimeout(() => (aviso.value = ''), 3000); }
+function publicarNova(nome: string) {
+  nomeNova.value = false;
+  if (!nome || !song.value || !origem.value) return;
+  publicar(song.value, nome, obraDe(origem.value));
+  avisar(`Nova versão “${nome}” publicada no acervo`);
+}
 const sub = computed(() => {
   const s = song.value, m = mostrada.value;
   if (!s || !m) return '';
   return [
     sl.value?.moments[props.id] ?? '',
+    origem.value && (obras.value[obraDe(origem.value)]?.length ?? 0) > 1 ? rotulo(origem.value) : '',
     m.key,
     s.capo ? `capo ${s.capo}${comCapo.value ? '' : ' (off)'}` : '',
     tom.value ? `${tom.value > 0 ? '+' : ''}${tom.value}` : '',
@@ -100,8 +121,14 @@ const sub = computed(() => {
         @click="abrir({ nome: 'imprimir', songId: song.id, setlistId: props.setlistId })">
         <span class="ms">print</span>
       </button>
+      <button v-if="origem" class="icon-btn" :title="`Ver no acervo (${rotulo(origem)} de ${nomeA(origem.dono)})`"
+        @click="abrir({ nome: 'obra', obra: obraDe(origem), versaoId: origem.id })"><span class="ms">public</span></button>
+      <button v-else-if="cloud.user && minha" class="icon-btn" title="Publicar no acervo geral"
+        @click="publicar(song); avisar('Publicada no acervo geral')"><span class="ms">publish</span></button>
+      <button v-if="diferente" class="icon-btn" title="Publicar como nova versão no acervo" @click="nomeNova = true">
+        <span class="ms">library_add</span></button>
       <template v-if="ativa">
-        <button class="icon-btn" title="Histórico e versões" @click="abrir({ nome: 'versoes', id: song.id })">
+        <button class="icon-btn" title="Histórico de revisões" @click="abrir({ nome: 'versoes', id: song.id })">
           <span class="ms">history</span>
         </button>
         <button class="icon-btn" title="Dono e quem pode editar" @click="perm = true">
@@ -117,6 +144,14 @@ const sub = computed(() => {
     <div v-if="!prefs.soLetra && acordes.length" class="acordes no-print">
       <span v-for="c in acordes" :key="c" class="chip ac">{{ c }}</span>
     </div>
+    <div v-if="novidade && origem" class="banner novo no-print">
+      <span class="ms">new_releases</span>
+      <span class="grow">A versão “{{ rotulo(origem) }}” mudou no acervo (revisão {{ origem.versao }}, por {{ nomeA(origem.por) }}).</span>
+      <button class="btn text" @click="verDiff = !verDiff">{{ verDiff ? 'Esconder' : 'Ver o que mudou' }}</button>
+      <button class="btn tonal" :disabled="!be.podeEditarSong(song)" @click="atualizarDoAcervo(song); avisar('Atualizada com a versão do acervo')">Atualizar</button>
+    </div>
+    <div v-if="novidade && origem && verDiff" class="cifra"><DiffView :antes="song" :depois="origem" /></div>
+    <p v-if="aviso" class="aviso no-print">{{ aviso }}</p>
     <div v-if="song.notes" class="nota"><span class="ms">sticky_note_2</span><i>{{ song.notes }}</i></div>
 
     <main class="cifra">
@@ -157,6 +192,9 @@ const sub = computed(() => {
 
     <div v-if="rolando" class="faixa no-print"></div>
 
+    <Prompt v-if="nomeNova" titulo="Publicar como nova versão"
+      :dica="`Nome da versão (ex.: Versão ${cloud.grupo?.nome ?? 'nossa'}, Simplificada)`" ok="Publicar"
+      @fechar="nomeNova = false" @ok="publicarNova" />
     <Permissoes v-if="perm" :titulo="song.title" :dono="song.dono" :editores="song.editores"
       @fechar="perm = false" @salvar="(l) => setEditoresSong(song!, l)" />
   </div>
@@ -177,6 +215,9 @@ const sub = computed(() => {
   padding: 6px 8px; background: var(--surface-1); border-top: 1px solid var(--line); overflow-x: auto;
 }
 .lbl { font-weight: 600; font-size: 13px; padding: 0 2px; }
+.novo { display: flex; align-items: center; gap: 10px; border-radius: 0; flex-wrap: wrap; }
+.novo .grow { flex: 1; min-width: 200px; }
+.aviso { margin: 6px 16px; color: var(--ok); }
 .play { background: var(--chip); }
 .faixa {
   position: fixed; left: 0; right: 0; top: 30vh; height: 3em; pointer-events: none;

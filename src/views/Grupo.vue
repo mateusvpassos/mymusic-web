@@ -8,6 +8,7 @@ import {
   convidar, remover, setConfianca, enviar, naoEstaoNoGrupo, disponivel, entrarTeste,
 } from '../cloud';
 import { emulador } from '../firebase';
+import { acervo, obras, naoPublicadas, publicar } from '../acervo';
 import * as store from '../store';
 import { state } from '../store';
 
@@ -25,6 +26,12 @@ function alternaConfianca(m: string) {
 const falta = computed(() => (state.signedIn && ativa.value && cloud.carregou
   ? naoEstaoNoGrupo(state.data.songs, state.data.setlists) : null));
 const enviados = ref<{ songs: number; sets: number } | null>(null);
+const publicadas = ref(0);
+function publicarTodas() {
+  const l = [...naoPublicadas.value];
+  l.forEach((s) => publicar(s));
+  publicadas.value = l.length;
+}
 function trazerDoDrive() {
   enviados.value = enviar(state.data.songs, state.data.setlists);
 }
@@ -119,6 +126,21 @@ function trazerDoDrive() {
               </button>
               <span v-if="!outros.length" class="faint">Convide alguém primeiro.</span>
             </div>
+          </div>
+
+          <div v-if="acervo.carregou" class="card">
+            <h3 class="section-title"><span class="ms">public</span>Acervo geral</h3>
+            <p v-if="publicadas">Publicadas: {{ publicadas }} música(s).</p>
+            <p v-else-if="!naoPublicadas.length">
+              Todas as suas músicas estão no acervo. {{ Object.keys(obras).length }} músicas no acervo ao todo.
+            </p>
+            <template v-else>
+              <p>
+                {{ naoPublicadas.length }} música(s) suas ainda não estão no acervo geral. Publicando, todo mundo do
+                app pode ver e puxar (você continua dono; os outros sugerem). O grupo segue com as cópias dele.
+              </p>
+              <button class="btn" @click="publicarTodas"><span class="ms">publish</span>Publicar {{ naoPublicadas.length }} no acervo</button>
+            </template>
           </div>
 
           <div class="card">

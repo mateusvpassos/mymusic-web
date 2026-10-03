@@ -7,19 +7,22 @@ import ChordChart from '../components/ChordChart.vue';
 import Prompt from '../components/Prompt.vue';
 import { voltar } from '../nav';
 import * as be from '../backend';
-import { sugerir, nomeDe } from '../cloud';
+import { sugerir, nomeDe as nomeGrupo } from '../cloud';
+import { acervo, salvarA, sugerirA, podeEditarA, nomeDe as nomeAcervo, rotulo } from '../acervo';
 import { rascunho } from '../rascunho';
 import { serializeSections, importText, suggestKey, detectMeta } from '../chordEngine';
 import { TEMPOS, MOMENTOS } from '../liturgia';
 import type { Song } from '../types';
 
-const props = defineProps<{ id: string; nova?: boolean }>();
+const props = defineProps<{ id: string; nova?: boolean; acervo?: boolean }>();
 
-const origem = props.nova ? rascunho.value : be.songById(props.id);
+const origem = props.acervo ? acervo.musicas[props.id] : props.nova ? rascunho.value : be.songById(props.id);
+const nomeDe = (e: string) => (props.acervo ? nomeAcervo(e) : nomeGrupo(e));
 const s = ref<Song | null>(origem ? JSON.parse(JSON.stringify(origem)) : null);
 const texto = ref(origem ? serializeSections(origem.sections) : '');
 const tag = ref('');
-const sugestao = computed(() => !props.nova && !!origem && !be.podeEditarSong(origem));
+const sugestao = computed(() => !props.nova && !!origem &&
+  !(props.acervo ? podeEditarA(origem) : be.podeEditarSong(origem)));
 const pedirNota = ref(false);
 const enviado = ref(false);
 
@@ -56,14 +59,15 @@ function montar(): Song {
 
 function salvar() {
   if (sugestao.value) { pedirNota.value = true; return; }
-  be.salvarSong(montar());
+  if (props.acervo) salvarA(montar());
+  else be.salvarSong(montar());
   if (props.nova) rascunho.value = null;
   voltar();
 }
 
 function enviar(nota: string) {
   pedirNota.value = false;
-  sugerir(montar(), nota);
+  (props.acervo ? sugerirA : sugerir)(montar(), nota);
   enviado.value = true;
   setTimeout(voltar, 1200);
 }
@@ -72,7 +76,8 @@ function enviar(nota: string) {
 <template>
   <div v-if="!s" class="empty">Música não encontrada</div>
   <div v-else>
-    <AppBar :titulo="sugestao ? 'Sugerir mudança' : props.nova ? 'Nova música' : 'Editar'">
+    <AppBar :titulo="sugestao ? 'Sugerir mudança' : props.nova ? 'Nova música' : 'Editar'"
+      :sub="props.acervo && origem ? `Acervo — ${rotulo(origem)}` : ''">
       <button class="btn text" @click="voltar">Cancelar</button>
       <button class="btn" @click="salvar">
         <span class="ms">{{ sugestao ? 'outgoing_mail' : 'check' }}</span>{{ sugestao ? 'Enviar sugestão' : 'Salvar' }}

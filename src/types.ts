@@ -29,6 +29,12 @@ export interface Song extends CloudMeta {
   tempos: string[];
   momentos: string[];
   versao: number;
+  /** acervo: a mesma obra pode ter várias versões (arranjos); vazio = é a própria */
+  obra: string;
+  nomeVersao: string;
+  /** de qual versão do acervo esta cópia veio (e em que revisão) */
+  baseId: string;
+  baseRev: number;
   updatedAt: string; // ISO8601
 }
 
@@ -68,6 +74,7 @@ export interface RawSong extends RawMeta {
   id: string; title: string; artist?: string; key?: string; capo?: number;
   sections?: RawSection[]; tags?: string[]; notes?: string; bpm?: number; updatedAt?: string;
   scrollSpeed?: number; tempos?: string[]; momentos?: string[]; versao?: number;
+  obra?: string; nomeVersao?: string; baseId?: string; baseRev?: number;
 }
 export interface RawSetlist extends RawMeta {
   id: string; name: string; songIds?: string[];
@@ -126,6 +133,10 @@ export function songFromRaw(j: RawSong): Song {
     tempos: j.tempos ?? [],
     momentos: j.momentos ?? [],
     versao: j.versao ?? 0,
+    obra: j.obra ?? '',
+    nomeVersao: j.nomeVersao ?? '',
+    baseId: j.baseId ?? '',
+    baseRev: j.baseRev ?? 0,
     ...metaFromRaw(j),
     updatedAt: j.updatedAt ?? new Date().toISOString(),
   };
@@ -153,6 +164,10 @@ export function songToRaw(s: Song): RawSong {
     ...(s.momentos.length ? { momentos: s.momentos } : {}),
     ...metaToRaw(s),
     ...(s.versao > 0 ? { versao: s.versao } : {}),
+    ...(s.obra ? { obra: s.obra } : {}),
+    ...(s.nomeVersao ? { nomeVersao: s.nomeVersao } : {}),
+    ...(s.baseId ? { baseId: s.baseId } : {}),
+    ...(s.baseRev > 0 ? { baseRev: s.baseRev } : {}),
     updatedAt: s.updatedAt,
   };
 }

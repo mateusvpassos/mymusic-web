@@ -5,11 +5,13 @@ import { reactive, watch } from 'vue';
 export type Tela =
   | { nome: 'inicio' }
   | { nome: 'musica'; id: string; setlistId?: string }
-  | { nome: 'editar'; id: string; nova?: boolean }
+  | { nome: 'editar'; id: string; nova?: boolean; acervo?: boolean }
+  | { nome: 'acervo' }
+  | { nome: 'obra'; obra: string; versaoId?: string }
   | { nome: 'repertorio'; id: string }
   | { nome: 'sugestoes' }
   | { nome: 'sugestao'; id: string }
-  | { nome: 'versoes'; id: string }
+  | { nome: 'versoes'; id: string; acervo?: boolean }
   | { nome: 'grupo' }
   | { nome: 'atividade' }
   | { nome: 'imprimir'; setlistId?: string; songId?: string };
