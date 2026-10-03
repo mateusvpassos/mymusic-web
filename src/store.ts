@@ -129,14 +129,21 @@ export async function saveToDrive() {
 // ---- CRUD ----
 const now = () => new Date().toISOString();
 
-export function newSong(): Song {
-  const s: Song = {
+/** Música nova ainda fora da lista — entra com putSong() ao confirmar. */
+export function draftSong(): Song {
+  return {
     id: uid(), title: 'Nova música', artist: '', key: 'C', capo: 0,
     sections: [], tags: [], notes: '', bpm: 0, updatedAt: now(),
   };
-  state.data.songs.unshift(s);
+}
+
+/** Grava a cópia editada: substitui a existente ou entra no topo se for nova. */
+export function putSong(s: Song) {
+  s.updatedAt = now();
+  const i = state.data.songs.findIndex((x) => x.id === s.id);
+  if (i >= 0) state.data.songs[i] = s;
+  else state.data.songs.unshift(s);
   state.dirty = true;
-  return s;
 }
 
 export function touchSong(s: Song) {

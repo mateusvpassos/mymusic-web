@@ -25,12 +25,16 @@ const filtered = computed(() =>
   }),
 );
 
+// O editor trabalha numa CÓPIA: antes os campos eram ligados direto na música
+// salva e "Cancelar" não desfazia título/tom/capo/tags já digitados.
 function openSong(s: Song) {
-  editing.value = s;
+  editing.value = JSON.parse(JSON.stringify(s)) as Song;
   editText.value = serializeSections(s.sections);
 }
+// música nova só entra na lista no OK (antes ficava "Nova música" vazia se
+// a pessoa cancelasse, e subia pro Drive no próximo salvar)
 function newSong() {
-  openSong(store.newSong());
+  openSong(store.draftSong());
 }
 function applySong() {
   const s = editing.value!;
@@ -46,7 +50,7 @@ function applySong() {
     if (k) s.key = k;
   }
   s.title = s.title.trim() || 'Sem título';
-  store.touchSong(s);
+  store.putSong(s);
   editing.value = null;
 }
 function removeSong(s: Song) {
