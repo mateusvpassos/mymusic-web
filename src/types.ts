@@ -56,6 +56,10 @@ export interface RawData {
   songs?: RawSong[];
   setlists?: RawSetlist[];
   settings?: AppSettings;
+  /** histórico do app — o web só repassa */
+  audit?: unknown[];
+  /** lápides de exclusão: 'song:<id>' / 'setlist:<id>' -> ISO */
+  deleted?: Record<string, string>;
 }
 
 export function songFromRaw(j: RawSong): Song {
