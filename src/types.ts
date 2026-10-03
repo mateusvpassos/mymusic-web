@@ -14,6 +14,11 @@ export interface Song {
   tags: string[];
   notes: string;
   bpm: number;
+  /** px/s da auto-rolagem desta música; 0 = a das configurações */
+  scrollSpeed: number;
+  /** tempos litúrgicos (vazio = qualquer) e momentos da Missa */
+  tempos: string[];
+  momentos: string[];
   updatedAt: string; // ISO8601
 }
 
@@ -22,6 +27,8 @@ export interface Setlist {
   name: string;
   songIds: string[];
   transpose: Record<string, number>;
+  /** songId -> momento da Missa */
+  moments: Record<string, string>;
   date: string | null;
   updatedAt: string;
 }
@@ -47,10 +54,12 @@ export interface RawSection { n: string; l: RawLine[] }
 export interface RawSong {
   id: string; title: string; artist?: string; key?: string; capo?: number;
   sections?: RawSection[]; tags?: string[]; notes?: string; bpm?: number; updatedAt?: string;
+  scrollSpeed?: number; tempos?: string[]; momentos?: string[];
 }
 export interface RawSetlist {
   id: string; name: string; songIds?: string[];
   transpose?: Record<string, number>; date?: string | null; updatedAt?: string;
+  moments?: Record<string, string>;
 }
 export interface RawData {
   songs?: RawSong[];
@@ -79,6 +88,9 @@ export function songFromRaw(j: RawSong): Song {
     tags: j.tags ?? [],
     notes: j.notes ?? '',
     bpm: j.bpm ?? 0,
+    scrollSpeed: j.scrollSpeed ?? 0,
+    tempos: j.tempos ?? [],
+    momentos: j.momentos ?? [],
     updatedAt: j.updatedAt ?? new Date().toISOString(),
   };
 }
@@ -100,6 +112,10 @@ export function songToRaw(s: Song): RawSong {
     tags: s.tags,
     notes: s.notes,
     bpm: s.bpm,
+    // mesmas regras do app: só grava quando tem valor
+    ...(s.scrollSpeed > 0 ? { scrollSpeed: s.scrollSpeed } : {}),
+    ...(s.tempos.length ? { tempos: s.tempos } : {}),
+    ...(s.momentos.length ? { momentos: s.momentos } : {}),
     updatedAt: s.updatedAt,
   };
 }
@@ -110,6 +126,7 @@ export function setlistFromRaw(j: RawSetlist): Setlist {
     name: j.name,
     songIds: j.songIds ?? [],
     transpose: j.transpose ?? {},
+    moments: j.moments ?? {},
     date: j.date ?? null,
     updatedAt: j.updatedAt ?? new Date().toISOString(),
   };
@@ -119,6 +136,7 @@ export function setlistToRaw(s: Setlist): RawSetlist {
   return {
     id: s.id, name: s.name, songIds: s.songIds,
     transpose: s.transpose, date: s.date, updatedAt: s.updatedAt,
+    ...(Object.keys(s.moments).length ? { moments: s.moments } : {}),
   };
 }
 

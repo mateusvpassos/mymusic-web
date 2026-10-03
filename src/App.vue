@@ -4,6 +4,7 @@ import * as store from './store';
 import { state } from './store';
 import { serializeSections, importText, suggestKey, detectMeta } from './chordEngine';
 import type { Song, Setlist, SongLine } from './types';
+import { TEMPOS, MOMENTOS } from './liturgia';
 
 const tab = ref<'songs' | 'setlists'>('songs');
 const query = ref('');
@@ -68,6 +69,15 @@ function chordRow(line: SongLine): string {
     row += c.sym;
   }
   return row;
+}
+// liga/desliga mantendo a ordem da lista (calendário / Missa)
+function toggle(list: string[], v: string, ordem: readonly string[]) {
+  const i = list.indexOf(v);
+  if (i >= 0) list.splice(i, 1);
+  else {
+    list.push(v);
+    list.sort((a, b) => ordem.indexOf(a) - ordem.indexOf(b));
+  }
 }
 function addTag() {
   const t = tagInput.value.trim().toLowerCase();
@@ -196,6 +206,26 @@ function setTranspose(sl: Setlist, id: string, v: number) {
           </em>
           <input v-model="tagInput" placeholder="+ tag" @keyup.enter="addTag" />
         </div>
+        <details class="liturgia" :open="!!(editing.tempos.length || editing.momentos.length)">
+          <summary>
+            Tempo litúrgico e momento da Missa
+            <span v-if="editing.tempos.length || editing.momentos.length" class="resumo">
+              — {{ [...editing.tempos, ...editing.momentos].join(' · ') }}
+            </span>
+          </summary>
+          <div class="chips-label">Tempo litúrgico (nenhum = qualquer tempo)</div>
+          <div class="chips">
+            <button v-for="t in TEMPOS" :key="t" type="button"
+              :class="{ on: editing.tempos.includes(t) }"
+              @click="toggle(editing.tempos, t, TEMPOS)">{{ t }}</button>
+          </div>
+          <div class="chips-label">Momento da Missa</div>
+          <div class="chips">
+            <button v-for="m in MOMENTOS" :key="m" type="button"
+              :class="{ on: editing.momentos.includes(m) }"
+              @click="toggle(editing.momentos, m, MOMENTOS)">{{ m }}</button>
+          </div>
+        </details>
         <label>Cifra (acordes acima da letra, ou <code>[G]</code> antes da sílaba; <code>#Seção</code> = seção)</label>
         <div class="editor-split">
           <textarea v-model="editText" spellcheck="false" placeholder="Cole a cifra aqui…"></textarea>
@@ -279,6 +309,13 @@ h1 { font-size: 22px; margin: 0; }
 .key { width: 70px; text-align: center; }
 .tags-edit { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
 .tags-edit input { width: 90px; }
+.liturgia { margin: 6px 0 2px; font-size: 13px; }
+.liturgia summary { cursor: pointer; color: var(--muted); }
+.liturgia .resumo { color: var(--fg); }
+.chips-label { font-size: 12px; color: var(--muted); margin: 6px 0 3px; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.chips button { border: 1px solid var(--chip); background: transparent; color: inherit; border-radius: 999px; padding: 2px 10px; font-size: 12px; cursor: pointer; }
+.chips button.on { background: var(--accent, #3d5afe); border-color: transparent; color: #fff; }
 label { color: var(--muted); font-size: 13px; }
 textarea { min-height: 320px; font-family: ui-monospace, monospace; font-size: 13px; line-height: 1.45; resize: vertical; }
 .editor-split { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: stretch; }
