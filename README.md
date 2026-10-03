@@ -14,7 +14,7 @@ A ideia: configurar tudo no PC com teclado, salvar, e abrir pronto no tablet.
 ## ✨ O que faz
 
 - **Músicas:** título, artista, tom, capo, **tags** e a cifra em texto
-- **Importa cifra** colada no formato "acorde acima da letra" (Cifra Club) **ou** ChordPro `[G]letra`
+- **Importa cifra** colada no formato "acorde acima da letra" (Cifra Club) **ou** ChordPro `[G]letra` — com **prévia ao vivo**; `Tom:`, `Capo` e `{title:}` no texto preenchem os campos
 - **Repertórios:** adicionar/remover, reordenar e **tom por música**
 - **Salva no Google Drive** (pasta privada `appDataFolder`) — o tablet baixa e mescla
 
@@ -56,7 +56,16 @@ Web e tablet usam o **mesmo projeto Google Cloud**, então compartilham o mesmo 
 Editor Web  ──salva──►  Drive (mymusic_data.json)  ◄──baixa──  App Tablet
 ```
 
-Cada save atualiza o `updatedAt`; o tablet faz **merge LWW** (a versão mais recente vence), sem perder edições.
+Cada save atualiza o `updatedAt`; **dos dois lados** o salvar baixa o que está no Drive, mescla (a versão mais recente vence) e só então sobe — um não apaga o que o outro acabou de gravar. Exclusões viajam como "lápides" (`deleted` no JSON), então música apagada não ressuscita no próximo sync. Config e histórico do app passam intactos pelo web.
+
+O parser (`src/chordEngine.ts`) é cópia do `chord_engine.dart` do app. Pra conferir que os dois dão o mesmo resultado:
+
+```bash
+# no repo do app
+flutter test test/parser_parity_test.dart
+# aqui
+node scripts/parity.ts
+```
 
 ### Configuração OAuth (uma vez)
 - **OAuth Client tipo Web** no mesmo projeto do client Android (`333951307134`)
