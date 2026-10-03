@@ -1,13 +1,15 @@
 <script setup lang="ts">
 // Acervo geral: todas as músicas (obras) de quem usa o app, com as versões.
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import AppBar from '../components/AppBar.vue';
 import { abrir } from '../nav';
-import { acervo, obras, nomeDe, ligado } from '../acervo';
+import { acervo, obras, nomeDe, ligado, religar } from '../acervo';
 import * as be from '../backend';
 import { searchSongs, fold } from '../core';
 
 const busca = ref('');
+// se a leitura tinha sido negada antes, tenta de novo ao abrir
+onMounted(() => { if (acervo.erro || !acervo.carregou) religar(); });
 const hits = computed(() => {
   const principais = Object.values(obras.value).map((l) => l[0]);
   const l = searchSongs(principais, busca.value);
@@ -29,7 +31,8 @@ const naBiblioteca = computed(() => new Set(be.songs.value.map((s) => s.baseId))
           <span class="ms">search</span>
           <input v-model="busca" placeholder="Buscar no acervo (nome, artista ou trecho da letra)..." />
         </div>
-        <p v-if="acervo.erro" class="error">{{ acervo.erro }}</p>
+        <p v-if="acervo.erro" class="error">{{ acervo.erro }}
+          <button class="btn text" @click="religar">Tentar de novo</button></p>
         <p v-if="!acervo.carregou" class="faint">Carregando…</p>
         <ul class="list">
           <li v-for="h in hits" :key="h.song.id" class="row"

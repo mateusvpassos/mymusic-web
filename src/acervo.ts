@@ -29,7 +29,7 @@ let subs: Unsubscribe[] = [];
 const falhou = (e: unknown) => {
   const code = (e as { code?: string }).code;
   acervo.erro = code === 'permission-denied'
-    ? 'Sem permissão para essa mudança no acervo.' : String((e as Error).message ?? e);
+    ? 'Sem permissão no acervo (regras do Firestore desatualizadas?).' : String((e as Error).message ?? e);
 };
 
 export const nomeDe = (email: string) =>
@@ -48,7 +48,15 @@ function lerSug(d: { id: string; data: () => Record<string, any> }): Sugestao {
 }
 
 // liga/desliga com o login
-watch(eu, (email) => {
+watch(eu, (email) => ligar(email), { immediate: true });
+
+/** Reabre as leituras (ex.: regras publicadas depois de abrir a página). */
+export function religar() {
+  acervo.erro = null;
+  ligar(eu.value);
+}
+
+function ligar(email: string) {
   subs.forEach((u) => u());
   subs = [];
   acervo.musicas = {};
@@ -66,6 +74,7 @@ watch(eu, (email) => {
     }
     acervo.musicas = m;
     acervo.carregou = true;
+    acervo.erro = null;
   }, falhou));
   subs.push(onSnapshot(collection(db, 'confianca'), (q) => {
     acervo.confianca = Object.fromEntries(q.docs.map((d) => [d.id, d.data().editores ?? []]));
@@ -86,7 +95,7 @@ watch(eu, (email) => {
     minhas.clear(); q.docs.forEach((d) => minhas.set(d.id, lerSug(d))); junta();
   }, falhou));
   setDoc(doc(db, 'pessoas', email), { nome: cloud.user?.nome ?? email, visto: serverTimestamp() }).catch(falhou);
-}, { immediate: true });
+}
 
 export const ligado = computed(() => !!eu.value);
 
