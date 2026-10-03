@@ -145,7 +145,10 @@ function ouvirGrupos() {
 export async function criarGrupo(nome: string) {
   if (!db || !cloud.user) return;
   const ref = doc(collection(db, 'grupos'));
-  setDoc(ref, { nome, dono: eu.value, membros: [eu.value], criadoEm: serverTimestamp() }).catch(falhou);
+  // espera o servidor: ler o grupo antes dele existir lá dá "permission denied"
+  try {
+    await setDoc(ref, { nome, dono: eu.value, membros: [eu.value], criadoEm: serverTimestamp() });
+  } catch (e) { falhou(e); return; }
   abrirGrupo({ id: ref.id, nome, dono: eu.value, membros: [eu.value] });
 }
 

@@ -12,7 +12,14 @@ import {
  * Não é segredo: o acesso é controlado por firebase/firestore.rules (repo do app).
  * null = nuvem ainda não configurada (o editor usa o Drive como antes).
  */
-const firebaseConfig: FirebaseOptions | null = null;
+const firebaseConfig: FirebaseOptions | null = {
+  apiKey: 'AIzaSyDJrINzDLOL52Mz5au7H0zay0pdmMrPUsg',
+  authDomain: 'cifras-779b6.firebaseapp.com',
+  projectId: 'cifras-779b6',
+  storageBucket: 'cifras-779b6.firebasestorage.app',
+  messagingSenderId: '167404504785',
+  appId: '1:167404504785:web:a1c18245a702ea718467f0',
+};
 
 const EMU = (import.meta.env.VITE_MYMUSIC_EMU as string | undefined) ?? '';
 export const emulador = EMU !== '';
