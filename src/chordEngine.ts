@@ -324,7 +324,8 @@ export function importText(text: string): Section[] {
       cur.lines[cur.lines.length - 1].lyric.trim() === ''
     )
       cur.lines.pop();
-    sections.push(cur);
+    // seção sem nome e sem linha (sobra de metadado) não vira seção vazia
+    if (cur.name || cur.lines.length) sections.push(cur);
   };
   const newSection = (name: string) => {
     if (started) close();
