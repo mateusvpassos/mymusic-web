@@ -9,7 +9,7 @@ import Permissoes from '../components/Permissoes.vue';
 import { abrir, trocar, prefs } from '../nav';
 import * as be from '../backend';
 import { ativa, setEditoresSong, nomeDe, eu, cloud } from '../cloud';
-import { obras, obraDe, rotulo, baseDe, temNovidade, atualizarDoAcervo, publicar, nomeDe as nomeA } from '../acervo';
+import { acervo, obras, obraDe, rotulo, baseDe, temNovidade, atualizarDoAcervo, publicar, puxar, podeEditarA, nomeDe as nomeA } from '../acervo';
 import DiffView from '../components/DiffView.vue';
 import Prompt from '../components/Prompt.vue';
 import { resumoMudancas } from '../core';
@@ -20,7 +20,13 @@ const props = defineProps<{ id: string; setlistId?: string }>();
 
 // música de quem conduz que não está no meu grupo vem junto da sessão
 const doGrupo = computed(() => !!be.songById(props.id));
-const song = computed(() => be.songById(props.id) ?? live.songs[props.id]);
+const song = computed(() => be.songById(props.id) ?? acervo.musicas[props.id] ?? live.songs[props.id]);
+// aberta direto do acervo geral (ainda sem cópia nas minhas músicas)
+const doAcervo = computed(() => !doGrupo.value && !!acervo.musicas[props.id]);
+function adicionarMinhas() {
+  const c = puxar(song.value!);
+  trocar({ nome: 'musica', id: c.id, setlistId: props.setlistId });
+}
 const sl = computed(() => (props.setlistId
   ? be.setlistById(props.setlistId) ?? live.setlists[props.setlistId] : undefined));
 const podeEditar = computed(() => !!song.value && doGrupo.value && be.podeEditarSong(song.value));
@@ -237,7 +243,8 @@ const sub = computed(() => {
     tom.value ? `${tom.value > 0 ? '+' : ''}${tom.value}` : '',
     s.bpm ? `${s.bpm} BPM` : '',
     lista.value.length > 1 ? `${idx.value + 1}/${lista.value.length}` : '',
-    ativa.value && s.dono && s.dono !== eu.value ? `de ${nomeDe(s.dono)}` : '',
+    doAcervo.value ? `acervo geral${s.dono && s.dono !== eu.value ? ` · de ${nomeA(s.dono)}` : ''}`
+      : ativa.value && s.dono && s.dono !== eu.value ? `de ${nomeDe(s.dono)}` : '',
     live.ativo ? `ao vivo: ${live.reconectando ? 'reconectando…' : live.modo === 'segue' ? 'seguindo' : live.modo}` : '',
   ].filter(Boolean).join('  •  ');
 });
@@ -256,9 +263,20 @@ const sub = computed(() => {
         </div>
       </div>
       <button class="icon-btn" title="Tela cheia" @click="toggleCheia"><span class="ms">fullscreen</span></button>
-      <button v-if="origem" class="icon-btn" :title="`Ver no acervo (${rotulo(origem)} de ${nomeA(origem.dono)})`"
+      <template v-if="doAcervo">
+        <button class="icon-btn" title="Adicionar às minhas músicas" @click="adicionarMinhas">
+          <span class="ms">library_add</span></button>
+        <button class="icon-btn" :title="(obras[obraDe(song)]?.length ?? 1) > 1 ? 'Ver versões' : 'Versões e detalhes'"
+          @click="abrir({ nome: 'obra', obra: obraDe(song), versaoId: song.id })"><span class="ms">layers</span></button>
+        <button class="icon-btn" title="Histórico de revisões" @click="abrir({ nome: 'versoes', id: song.id, acervo: true })">
+          <span class="ms">history</span></button>
+        <button class="icon-btn" :title="podeEditarA(song) ? 'Editar' : 'Sugerir mudança'"
+          @click="abrir({ nome: 'editar', id: song.id, acervo: true })">
+          <span class="ms">{{ podeEditarA(song) ? 'edit' : 'rate_review' }}</span></button>
+      </template>
+      <button v-else-if="origem" class="icon-btn" :title="`Ver no acervo (${rotulo(origem)} de ${nomeA(origem.dono)})`"
         @click="abrir({ nome: 'obra', obra: obraDe(origem), versaoId: origem.id })"><span class="ms">public</span></button>
-      <button v-else-if="cloud.user && minha" class="icon-btn" title="Publicar no acervo geral"
+      <button v-else-if="cloud.user && minha && doGrupo" class="icon-btn" title="Publicar no acervo geral"
         @click="publicar(song); avisar('Publicada no acervo geral')"><span class="ms">publish</span></button>
       <button v-if="diferente" class="icon-btn" title="Publicar como nova versão no acervo" @click="nomeNova = true">
         <span class="ms">library_add</span></button>

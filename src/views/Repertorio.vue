@@ -7,6 +7,7 @@ import * as be from '../backend';
 import { ativa, nomeDe, setEditoresSetlist } from '../cloud';
 import { fmtData, searchSongs, transposeSong } from '../core';
 import { wordRepertorio, imagemRepertorio } from '../exportar';
+import { obras, copiaDaObra, puxar } from '../acervo';
 import { MOMENTOS, ordem, temposDe, usoMusicas, quando } from '../liturgia';
 import type { Setlist, Song } from '../types';
 
@@ -77,8 +78,13 @@ const dataMissa = computed(() => (sl.value?.date ? new Date(sl.value.date) : new
 const tempos = computed(() => temposDe(dataMissa.value));
 const uso = computed(() => usoMusicas(be.setlists.value, dataMissa.value, props.id));
 const especifica = (s: Song) => s.tempos.some((t) => tempos.value.includes(t));
+// minhas músicas + as do acervo que ainda não tenho (entram nas minhas ao marcar)
+const doAcervo = computed(() => Object.entries(obras.value)
+  .filter(([k]) => !copiaDaObra(k))
+  .map(([, vs]) => vs[0]));
+const daBiblioteca = (s: Song) => !!be.songById(s.id);
 const achadas = computed(() => {
-  let l = searchSongs(be.songs.value, busca.value);
+  let l = searchSongs([...be.songs.value, ...doAcervo.value], busca.value);
   if (filtroMomento.value) l = l.filter((h) => h.song.momentos.includes(filtroMomento.value!));
   if (!busca.value.trim()) {
     if (soTempo.value) l = l.filter((h) => !h.song.tempos.length || especifica(h.song));
@@ -88,6 +94,7 @@ const achadas = computed(() => {
   return l;
 });
 function marcar(s: Song) {
+  if (!daBiblioteca(s)) s = puxar(s);
   const r = sl.value!;
   if (r.songIds.includes(s.id)) { tirar(s.id); return; }
   const m = filtroMomento.value ?? (s.momentos.length === 1 ? s.momentos[0] : null);
@@ -235,6 +242,7 @@ const perm = ref(false);
                     h.snippet ? `“${h.snippet}”` : ''].filter(Boolean).join('  •  ') }}
               </div>
             </div>
+            <span v-if="!daBiblioteca(h.song)" class="ms faint" title="Do acervo geral — entra nas suas músicas ao marcar">public</span>
             <span v-if="especifica(h.song)" class="ms" style="color: var(--primary)" title="Do tempo litúrgico">church</span>
           </li>
         </ul>

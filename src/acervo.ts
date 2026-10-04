@@ -113,6 +113,17 @@ export const obras = computed(() => {
   return m;
 });
 
+/** versão do acervo -> minha cópia dela na biblioteca */
+export const copias = computed(() => {
+  const m = new Map<string, Song>();
+  for (const s of be.songs.value) if (s.baseId) m.set(s.baseId, s);
+  return m;
+});
+
+/** Minha cópia de qualquer versão da obra (a que eu toco), se houver. */
+export const copiaDaObra = (obra: string) =>
+  (obras.value[obra] ?? []).map((v) => copias.value.get(v.id)).find((c): c is Song => !!c);
+
 export const podeEditarA = (s: Song) => pode(eu.value, s.dono, s.editores, acervo.confianca);
 export const souDonoA = (s: Song) => s.dono === eu.value;
 

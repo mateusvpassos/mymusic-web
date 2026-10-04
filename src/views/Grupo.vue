@@ -1,5 +1,6 @@
 <script setup lang="ts">
-// Grupo compartilhado: entrar, convidar, quem edita o quê, trazer do Drive.
+// Conta e compartilhamento: quem você é, de quem é a biblioteca em uso,
+// quem tem acesso a ela e quem pode editar direto.
 import { ref, computed } from 'vue';
 import AppBar from '../components/AppBar.vue';
 import Prompt from '../components/Prompt.vue';
@@ -8,30 +9,27 @@ import {
   convidar, remover, setConfianca, disponivel, entrarTeste,
 } from '../cloud';
 import { emulador } from '../firebase';
-import { acervo, obras, naoPublicadas, publicar } from '../acervo';
 
 const convite = ref('');
 const emailTeste = ref('');
 const nomeTeste = ref('');
 const criando = ref(false);
+const tirar = ref<string | null>(null);
 const outros = computed(() => (cloud.grupo?.membros ?? []).filter((m) => m !== eu.value));
 const meus = computed(() => cloud.confianca[eu.value] ?? []);
 function alternaConfianca(m: string) {
   setConfianca(meus.value.includes(m) ? meus.value.filter((x) => x !== m) : [...meus.value, m]);
 }
-
-// as minhas músicas que ainda não estão no acervo geral
-const publicadas = ref(0);
-function publicarTodas() {
-  const l = [...naoPublicadas.value];
-  l.forEach((x) => publicar(x));
-  publicadas.value = l.length;
+function convida() {
+  const e = convite.value.trim().toLowerCase();
+  if (e) convidar(e);
+  convite.value = '';
 }
 </script>
 
 <template>
   <div>
-    <AppBar titulo="Grupo compartilhado" />
+    <AppBar titulo="Conta e compartilhamento" />
     <div class="wrap">
       <div v-if="!disponivel" class="card">
         <h3 class="section-title"><span class="ms">cloud_off</span>Nuvem ainda não configurada</h3>
@@ -40,11 +38,8 @@ function publicarTodas() {
 
       <div v-else-if="!cloud.user" class="card">
         <h3 class="section-title"><span class="ms">login</span>Entrar</h3>
-        <p>
-          Com a conta Google, as músicas ficam num grupo compartilhado: cada um vê tudo, quem criou é o
-          dono e os outros mandam sugestões.
-        </p>
-        <form v-if="emulador" class="teste" @submit.prevent="entrarTeste(emailTeste, nomeTeste)">
+        <p>Entre com a conta Google p/ ver o acervo e as suas músicas.</p>
+        <form v-if="emulador" class="linha" @submit.prevent="entrarTeste(emailTeste, nomeTeste)">
           <input v-model="emailTeste" placeholder="E-mail (teste)" />
           <input v-model="nomeTeste" placeholder="Nome (teste)" />
           <button class="btn">Entrar (emulador)</button>
@@ -53,111 +48,125 @@ function publicarTodas() {
       </div>
 
       <template v-else>
-        <div class="card">
-          <h3 class="section-title"><span class="ms">account_circle</span>{{ cloud.user.nome }}
-            <span class="push"></span><button class="btn text" @click="sair">Sair</button></h3>
-          <div>{{ cloud.user.email }}</div>
+        <!-- conta -->
+        <div class="card conta">
+          <span class="av grande">{{ (cloud.user.nome[0] ?? '?').toUpperCase() }}</span>
+          <div class="grow">
+            <div class="nome">{{ cloud.user.nome }}</div>
+            <div class="faint">{{ cloud.user.email }}</div>
+          </div>
+          <button class="btn text" @click="sair">Sair</button>
         </div>
 
-        <div v-if="!cloud.grupo" class="card">
-          <h3 class="section-title"><span class="ms">groups</span>Nenhum grupo ainda</h3>
-          <ul v-if="cloud.grupos.length" class="list">
-            <li v-for="g in cloud.grupos" :key="g.id" class="row" @click="escolherGrupo(g)">
-              <span class="ms">group</span>
-              <div class="grow"><div class="title small">{{ g.nome }}</div><div class="sub">{{ g.membros.length }} pessoa(s)</div></div>
-            </li>
-          </ul>
-          <p v-else>
-            Para entrar no grupo de alguém, peça para te convidar com o e-mail <b>{{ cloud.user.email }}</b>.
-            Ou crie o seu grupo (banda, coral, ministério...):
-          </p>
-          <button class="btn" @click="criando = true"><span class="ms">add</span>Criar grupo</button>
-        </div>
+        <p v-if="!cloud.grupo" class="muted">Preparando a sua biblioteca…</p>
 
         <template v-else>
+          <!-- biblioteca em uso -->
           <div class="card">
-            <h3 class="section-title"><span class="ms">groups</span>{{ cloud.grupo.nome }}
-              <span class="push"></span>
-              <select v-if="cloud.grupos.length > 1" :value="cloud.grupo.id"
-                @change="escolherGrupo(cloud.grupos.find((g) => g.id === ($event.target as HTMLSelectElement).value)!)">
-                <option v-for="g in cloud.grupos" :key="g.id" :value="g.id">{{ g.nome }}</option>
-              </select>
-            </h3>
-            <div>{{ souDonoDoGrupo ? 'Você é o responsável pelo grupo.' : `Responsável: ${nomeDe(cloud.grupo.dono)}` }}</div>
-            <div class="muted">{{ cloud.carregou ? 'Sincronizado — as mudanças chegam na hora.' : 'Carregando…' }}</div>
-          </div>
-
-          <div class="card">
-            <h3 class="section-title"><span class="ms">group</span>Pessoas ({{ cloud.grupo.membros.length }})</h3>
-            <ul class="pessoas">
-              <li v-for="m in cloud.grupo.membros" :key="m">
-                <span class="av">{{ (nomeDe(m)[0] ?? '?').toUpperCase() }}</span>
-                <div class="grow"><div>{{ nomeDe(m) }}</div>
-                  <div class="faint small">{{ m }}{{ m === cloud.grupo.dono ? ' · responsável' : '' }}</div></div>
-                <button v-if="souDonoDoGrupo && m !== cloud.grupo.dono" class="icon-btn" title="Tirar do grupo"
-                  @click="remover(m)"><span class="ms">person_remove</span></button>
-              </li>
-            </ul>
-            <form v-if="souDonoDoGrupo" class="convite" @submit.prevent="convidar(convite); convite = ''">
-              <input v-model="convite" type="email" placeholder="E-mail Google de quem convidar" />
-              <button class="btn">Convidar</button>
-            </form>
-            <p v-if="souDonoDoGrupo" class="faint small">A pessoa entra com esse e-mail e já cai no grupo.</p>
-          </div>
-
-          <div class="card">
-            <h3 class="section-title"><span class="ms">verified_user</span>Quem edita o que é seu sem pedir</h3>
-            <p>
-              Marcados podem mudar TODAS as suas músicas e repertórios direto. Os outros mandam sugestão e você
-              aceita ou não. Dá p/ liberar também música por música (tela da música ›
-              <span class="ms" style="font-size: 18px; vertical-align: -4px">manage_accounts</span>).
+            <h3 class="section-title"><span class="ms">library_music</span>
+              {{ souDonoDoGrupo ? 'Sua biblioteca' : `Biblioteca de ${nomeDe(cloud.grupo.dono)}` }}</h3>
+            <p v-if="souDonoDoGrupo">
+              As suas músicas e os seus repertórios ficam salvos aqui, na nuvem. Quem você convidar vê tudo,
+              toca junto e pode <b>sugerir mudanças</b> — você aceita ou não (ícone
+              <span class="ms inline">inbox</span> na tela inicial).
             </p>
-            <div class="chips">
-              <button v-for="m in outros" :key="m" class="chip" :class="{ on: meus.includes(m) }" @click="alternaConfianca(m)">
-                <span v-if="meus.includes(m)" class="ms">check</span>{{ nomeDe(m) }}
-              </button>
-              <span v-if="!outros.length" class="faint">Convide alguém primeiro.</span>
+            <p v-else>
+              {{ nomeDe(cloud.grupo.dono) }} te convidou. Você vê e toca tudo; o que for dos outros você muda
+              mandando sugestão, a não ser que te liberem p/ editar direto.
+            </p>
+            <div v-if="cloud.grupos.length > 1" class="trocar">
+              <span class="faint">Você tem acesso a {{ cloud.grupos.length }} bibliotecas:</span>
+              <div class="chips">
+                <button v-for="g in cloud.grupos" :key="g.id" class="chip" :class="{ on: g.id === cloud.grupo.id }"
+                  @click="escolherGrupo(g)">
+                  <span v-if="g.id === cloud.grupo.id" class="ms">check</span>
+                  {{ g.dono === eu ? 'Minha' : g.nome }}
+                </button>
+              </div>
+            </div>
+            <div class="faint estado">
+              <span class="ms inline">{{ cloud.carregou ? 'cloud_done' : 'cloud_sync' }}</span>
+              {{ cloud.carregou ? 'Tudo salvo — as mudanças chegam na hora p/ todos.' : 'Carregando…' }}
             </div>
           </div>
 
-          <div v-if="acervo.carregou" class="card">
-            <h3 class="section-title"><span class="ms">public</span>Acervo geral</h3>
-            <p v-if="publicadas">Publicadas: {{ publicadas }} música(s).</p>
-            <p v-else-if="!naoPublicadas.length">
-              Todas as suas músicas estão no acervo. {{ Object.keys(obras).length }} músicas no acervo ao todo.
-            </p>
-            <template v-else>
-              <p>
-                {{ naoPublicadas.length }} música(s) suas ainda não estão no acervo geral. Publicando, todo mundo do
-                app pode ver e puxar (você continua dono; os outros sugerem). O grupo segue com as cópias dele.
-              </p>
-              <button class="btn" @click="publicarTodas"><span class="ms">publish</span>Publicar {{ naoPublicadas.length }} no acervo</button>
+          <!-- pessoas -->
+          <div class="card">
+            <h3 class="section-title"><span class="ms">group</span>Quem tem acesso ({{ cloud.grupo.membros.length }})</h3>
+            <ul class="pessoas">
+              <li v-for="m in cloud.grupo.membros" :key="m">
+                <span class="av">{{ (nomeDe(m)[0] ?? '?').toUpperCase() }}</span>
+                <div class="grow"><div>{{ nomeDe(m) }}{{ m === eu ? ' (você)' : '' }}</div>
+                  <div class="faint small">{{ m }}{{ m === cloud.grupo.dono ? ' · dono da biblioteca' : '' }}</div></div>
+                <button v-if="souDonoDoGrupo && m !== cloud.grupo.dono" class="icon-btn" title="Tirar o acesso"
+                  @click="tirar = m"><span class="ms">person_remove</span></button>
+              </li>
+            </ul>
+            <template v-if="souDonoDoGrupo">
+              <form class="linha" @submit.prevent="convida">
+                <input v-model="convite" type="email" placeholder="E-mail Google da pessoa" class="grow" />
+                <button class="btn" :disabled="!convite.trim()"><span class="ms">person_add</span>Convidar</button>
+              </form>
+              <p class="faint small">A pessoa instala o app, entra com esse e-mail e já vê a sua biblioteca.</p>
             </template>
           </div>
 
+          <!-- edição direta -->
+          <div v-if="souDonoDoGrupo" class="card">
+            <h3 class="section-title"><span class="ms">edit_note</span>Quem pode editar direto</h3>
+            <p>
+              Normalmente só você muda as suas músicas; os outros mandam sugestão. Marque quem pode mudar
+              <b>tudo</b> direto, sem pedir:
+            </p>
+            <div class="chips">
+              <button v-for="m in outros" :key="m" class="chip" :class="{ on: meus.includes(m) }" @click="alternaConfianca(m)">
+                <span class="ms">{{ meus.includes(m) ? 'check' : 'add' }}</span>{{ nomeDe(m) }}
+              </button>
+              <span v-if="!outros.length" class="faint">Convide alguém primeiro.</span>
+            </div>
+            <p class="faint small">Dá p/ liberar também só uma música ou um repertório
+              (na tela dele › <span class="ms inline">manage_accounts</span>).</p>
+          </div>
+
+          <div class="card">
+            <h3 class="section-title"><span class="ms">public</span>Acervo geral</h3>
+            <p>
+              É a aba <b>Músicas</b> da tela inicial: todas as músicas de quem usa o app. As suas entram lá
+              sozinhas (continuam suas; os outros só sugerem). Ao tocar ou pôr no repertório uma do acervo,
+              ela vem p/ as suas músicas como cópia — dá p/ mudar o tom e as anotações sem mexer na original.
+            </p>
+          </div>
+
+          <button class="btn text criar" @click="criando = true">
+            <span class="ms">add</span>Criar outra biblioteca separada (ex.: de um coral)</button>
         </template>
       </template>
       <p v-if="cloud.erro" class="error">{{ cloud.erro }}</p>
     </div>
-    <Prompt v-if="criando" titulo="Novo grupo" dica="Nome do grupo (ex.: banda, coral, ministério)" ok="Criar"
+    <Prompt v-if="criando" titulo="Nova biblioteca" dica="Nome (ex.: Coral da paróquia)" ok="Criar"
       @fechar="criando = false" @ok="(n) => { criando = false; if (n) criarGrupo(n); }" />
+    <Prompt v-if="tirar" titulo="Tirar o acesso?" :texto="`${nomeDe(tirar)} deixa de ver a sua biblioteca.`" sem-campo
+      ok="Tirar" @fechar="tirar = null" @ok="remover(tirar!); tirar = null" />
   </div>
 </template>
 
 <style scoped>
-.wrap { max-width: 860px; margin: 0 auto; padding: 0 16px 40px; display: flex; flex-direction: column; gap: 12px; }
-.card p { margin: 6px 0 12px; }
-.push { flex: 1; }
+.wrap { max-width: 760px; margin: 0 auto; padding: 0 16px 40px; display: flex; flex-direction: column; gap: 12px; }
+.card p { margin: 6px 0 12px; line-height: 1.45; }
+.conta { display: flex; align-items: center; gap: 14px; }
+.nome { font-weight: 700; font-size: 17px; }
 .small { font-size: 12px; }
-.title.small { font-size: 16px; }
-.pessoas { list-style: none; margin: 0; padding: 0; }
+.inline { font-size: 18px; vertical-align: -4px; }
+.estado { font-size: 13px; margin-top: 8px; }
+.trocar { display: flex; flex-direction: column; gap: 6px; margin-bottom: 4px; }
+.pessoas { list-style: none; margin: 0 0 8px; padding: 0; }
 .pessoas li { display: flex; align-items: center; gap: 12px; padding: 8px 0; }
 .av {
   width: 34px; height: 34px; border-radius: 50%; background: var(--primary-container); color: #fff;
-  display: grid; place-items: center; font-weight: 600;
+  display: grid; place-items: center; font-weight: 600; flex: none;
 }
+.av.grande { width: 46px; height: 46px; font-size: 20px; }
 .grow { flex: 1; min-width: 0; }
-.convite { display: flex; gap: 8px; margin-top: 8px; }
-.teste { display: flex; gap: 8px; flex-wrap: wrap; }
-.convite input { flex: 1; }
+.linha { display: flex; gap: 8px; flex-wrap: wrap; }
+.criar { align-self: flex-start; }
 </style>

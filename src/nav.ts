@@ -7,7 +7,7 @@ export type Tela =
   | { nome: 'inicio' }
   | { nome: 'musica'; id: string; setlistId?: string }
   | { nome: 'editar'; id: string; nova?: boolean; acervo?: boolean }
-  | { nome: 'acervo' }
+  | { nome: 'minhas' }
   | { nome: 'obra'; obra: string; versaoId?: string }
   | { nome: 'repertorio'; id: string }
   | { nome: 'sugestoes' }

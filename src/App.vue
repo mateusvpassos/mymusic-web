@@ -17,7 +17,7 @@ import Versoes from './views/Versoes.vue';
 import Grupo from './views/Grupo.vue';
 import Atividade from './views/Atividade.vue';
 import Imprimir from './views/Imprimir.vue';
-import Acervo from './views/Acervo.vue';
+import Minhas from './views/Minhas.vue';
 import Obra from './views/Obra.vue';
 
 const t = computed(() => nav.pilha[nav.pilha.length - 1]);
@@ -46,7 +46,7 @@ ouvir({
   <Inicio v-if="t.nome === 'inicio'" />
   <Musica v-else-if="t.nome === 'musica'" :key="chave" :id="t.id" :setlist-id="t.setlistId" />
   <Editar v-else-if="t.nome === 'editar'" :key="chave" :id="t.id" :nova="t.nova" :acervo="t.acervo" />
-  <Acervo v-else-if="t.nome === 'acervo'" />
+  <Minhas v-else-if="t.nome === 'minhas'" />
   <Obra v-else-if="t.nome === 'obra'" :key="chave" :obra="t.obra" :versao-id="t.versaoId" />
   <Repertorio v-else-if="t.nome === 'repertorio'" :key="chave" :id="t.id" />
   <Sugestoes v-else-if="t.nome === 'sugestoes'" />
