@@ -7,6 +7,8 @@ import { prefs } from './nav';
 import { uid } from './chordEngine';
 import { songFromRaw, setlistFromRaw, songToRaw, setlistToRaw } from './types';
 import type { Song, Setlist, RawSong, RawSetlist } from './types';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from './firebase';
 
 export type Modo = 'conduz' | 'segue' | 'livre';
 export interface Peer { id: string; name: string; mode: Modo }
@@ -93,7 +95,25 @@ function caiu() {
   }, 2000);
 }
 
-export async function entrar(endereco: string) {
+/** Código de 4 dígitos (o tablet publica no Firebase os IPs dele). */
+async function porCodigo(c: string): Promise<boolean> {
+  live.erro = '';
+  live.conectando = true;
+  let ips: string[] = [], porta = PORTA;
+  try {
+    const d = db ? await getDoc(doc(db, 'sessoes', c)) : null;
+    ips = (d?.data()?.ips as string[]) ?? [];
+    porta = Number(d?.data()?.porta ?? PORTA);
+  } catch { /* sem login/sem rede */ }
+  live.conectando = false;
+  if (!ips.length) { live.erro = `Código ${c} não encontrado — a sessão ainda está aberta?`; return false; }
+  for (const ip of ips) if (await entrar(`${ip}:${porta}`)) return true;
+  live.erro = `Achei a sessão ${c}, mas não conectou — este computador está no mesmo Wi-Fi do tablet?`;
+  return false;
+}
+
+export async function entrar(endereco: string): Promise<boolean> {
+  if (/^\d{4}$/.test(endereco.trim())) return porCodigo(endereco.trim());
   sair();
   let e = endereco.trim().replace(/^wss?:\/\//, '').replace(/\/.*$/, '');
   if (!e) return false;

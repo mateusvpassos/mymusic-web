@@ -37,10 +37,10 @@ meuNome();
       <template v-if="!live.ativo">
         <div class="card">
           <h3 class="section-title"><span class="ms">cell_tower</span>Entrar numa sessão</h3>
-          <p class="muted">Crie a sessão no tablet ou celular (MyMusic → <b>Ao vivo</b> → Criar sessão).
-            O endereço aparece lá, em “Endereço p/ digitar”. Este computador precisa estar na mesma rede (Wi-Fi).</p>
+          <p class="muted">Crie a sessão no tablet ou celular (MyMusic → <b>Ao vivo</b> → Criar sessão) e
+            digite aqui o <b>código</b> que aparece lá. Este computador precisa estar na mesma rede (Wi-Fi).</p>
           <form class="linha" @submit.prevent="conectar">
-            <input v-model="endereco" placeholder="Ex.: 192.168.0.15" class="grow" autofocus />
+            <input v-model="endereco" placeholder="Código (ex.: 4821) ou endereço" inputmode="decimal" class="grow" autofocus />
             <button class="btn" :disabled="live.conectando || !endereco.trim()">
               <span class="ms">login</span>{{ live.conectando ? 'Conectando…' : 'Entrar' }}
             </button>
