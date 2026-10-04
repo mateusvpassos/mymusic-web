@@ -166,6 +166,15 @@ export function novaVersao(base: Song, nomeVersao: string): Song {
 export const naoPublicadas = computed(() => be.songs.value.filter((s) =>
   (!s.baseId || !acervo.musicas[s.baseId]) && (!s.dono || s.dono === eu.value)));
 
+// minhas músicas vão sozinhas p/ o acervo (como no app), quando acervo e
+// grupo já carregaram — antes disso tudo pareceria "não publicado"
+let publicando = false;
+watch(() => [acervo.carregou, cloud.carregou, naoPublicadas.value.length] as const, ([a, c, n]) => {
+  if (publicando || !a || !c || !n) return;
+  publicando = true;
+  try { for (const s of [...naoPublicadas.value]) publicar(s); } finally { publicando = false; }
+});
+
 // ---------------- biblioteca <-> acervo ----------------
 
 export function puxar(v: Song): Song {

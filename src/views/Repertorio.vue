@@ -5,7 +5,8 @@ import Permissoes from '../components/Permissoes.vue';
 import { abrir } from '../nav';
 import * as be from '../backend';
 import { ativa, nomeDe, setEditoresSetlist } from '../cloud';
-import { fmtData, searchSongs } from '../core';
+import { fmtData, searchSongs, transposeSong } from '../core';
+import { wordRepertorio, imagemRepertorio } from '../exportar';
 import { MOMENTOS, ordem, temposDe, usoMusicas, quando } from '../liturgia';
 import type { Setlist, Song } from '../types';
 
@@ -94,6 +95,19 @@ function marcar(s: Song) {
 }
 
 // ---- exportar ----
+// no tom do repertório e com o momento da Missa no título, como no app
+const cifras = () => musicas.value.map((s) => {
+  const c = transposeSong(s, sl.value!.transpose[s.id] ?? 0);
+  const m = sl.value!.moments[s.id];
+  return m ? { ...c, title: `${m} · ${c.title}` } : c;
+});
+const exportar = ref(false);
+function exporta(tipo: 'docx' | 'img' | 'txt') {
+  exportar.value = false;
+  if (tipo === 'docx') wordRepertorio(sl.value!.name, cifras());
+  if (tipo === 'img') imagemRepertorio(sl.value!.name, cifras().map((s) => s.title));
+  if (tipo === 'txt') baixarLetras();
+}
 function baixarLetras() {
   const r = sl.value!;
   const txt = [`${r.name}${r.date ? ' — ' + fmtData(r.date) : ''}`, ''];
@@ -115,7 +129,7 @@ const perm = ref(false);
 
 <template>
   <div v-if="!sl" class="empty">Repertório não encontrado</div>
-  <div v-else>
+  <div v-else @click="exportar = false">
     <AppBar :titulo="sl.name" :sub="[fmtData(sl.date), sl.date ? tempos[0] : ''].filter(Boolean).join('  •  ')">
       <button v-if="ativa" class="icon-btn" title="Dono e quem pode editar" @click="perm = true">
         <span class="ms">manage_accounts</span>
@@ -128,9 +142,16 @@ const perm = ref(false);
       </button>
       <button class="icon-btn" title="PDF (todas as cifras, no tom do repertório)" :disabled="!musicas.length"
         @click="abrir({ nome: 'imprimir', setlistId: sl.id })"><span class="ms">print</span></button>
-      <button class="icon-btn" title="Letras (TXT) — cantores" :disabled="!musicas.length" @click="baixarLetras">
-        <span class="ms">description</span>
-      </button>
+      <div class="menu-wrap">
+        <button class="icon-btn" title="Exportar" :disabled="!musicas.length" @click.stop="exportar = !exportar">
+          <span class="ms">ios_share</span></button>
+        <div v-if="exportar" class="menu" @click.stop>
+          <button @click="exportar = false; abrir({ nome: 'imprimir', setlistId: sl.id })"><span class="ms">print</span>PDF (todas as cifras)</button>
+          <button @click="exporta('docx')"><span class="ms">description</span>Word (.docx)</button>
+          <button @click="exporta('img')"><span class="ms">image</span>Imagem da lista</button>
+          <button @click="exporta('txt')"><span class="ms">lyrics</span>Letras (TXT) — cantores</button>
+        </div>
+      </div>
     </AppBar>
 
     <div class="wrap">

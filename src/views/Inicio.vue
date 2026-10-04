@@ -11,6 +11,7 @@ import { searchSongs, fold, fmtData } from '../core';
 import { usoMusicas, quando, temposDe, proximoDomingo } from '../liturgia';
 import type { Song, Setlist } from '../types';
 import { emulador } from '../firebase';
+import { live } from '../live';
 // música nova só entra na lista ao salvar (o editor pega daqui)
 import { rascunho } from '../rascunho';
 
@@ -97,9 +98,11 @@ const fecharMenu = () => (menu.value = null);
         @click="abrir({ nome: 'grupo' })">
         <span class="ms">{{ ativa ? 'cloud_done' : 'cloud_off' }}</span>
       </button>
-      <button class="icon-btn" :title="prefs.tema === 'dark' ? 'Tema claro' : 'Tema escuro'"
-        @click="prefs.tema = prefs.tema === 'dark' ? 'light' : 'dark'">
-        <span class="ms">{{ prefs.tema === 'dark' ? 'light_mode' : 'dark_mode' }}</span>
+      <button class="icon-btn" :class="{ on: live.ativo }" title="Ao vivo" @click="abrir({ nome: 'aovivo' })">
+        <span class="ms">cell_tower</span>
+      </button>
+      <button class="icon-btn" title="Configurações" @click="abrir({ nome: 'config' })">
+        <span class="ms">settings</span>
       </button>
     </AppBar>
 

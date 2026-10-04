@@ -151,6 +151,19 @@ button:disabled { opacity: .45; cursor: default; }
 .section-title { font-size: 16px; font-weight: 700; margin: 0 0 10px; display: flex; align-items: center; gap: 10px; }
 .section-title .ms { color: var(--primary); }
 
+/* ---------- menu suspenso ---------- */
+.menu-wrap { position: relative; }
+.menu {
+  position: absolute; right: 0; top: 46px; z-index: 30; background: var(--surface-1); border-radius: 12px;
+  padding: 6px 0; min-width: 210px; box-shadow: 0 6px 24px rgba(0, 0, 0, .35);
+}
+.menu button {
+  display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 16px; border: 0;
+  background: transparent; text-align: left; font-size: 14px;
+}
+.menu button:hover { background: var(--card-hi); }
+.menu .ms { font-size: 20px; color: var(--muted); }
+
 /* ---------- folha / diálogo ---------- */
 .scrim {
   position: fixed; inset: 0; background: rgba(0, 0, 0, .55); z-index: 50;

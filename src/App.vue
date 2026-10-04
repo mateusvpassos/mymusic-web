@@ -1,7 +1,12 @@
 <script setup lang="ts">
 // Telas empilhadas como no app (src/nav.ts).
 import { computed } from 'vue';
-import { nav } from './nav';
+import { nav, abrir, trocar, atual } from './nav';
+import { ouvir } from './live';
+import * as be from './backend';
+import { live } from './live';
+import Config from './views/Config.vue';
+import AoVivo from './views/AoVivo.vue';
 import Inicio from './views/Inicio.vue';
 import Musica from './views/Musica.vue';
 import Editar from './views/Editar.vue';
@@ -18,6 +23,23 @@ import Obra from './views/Obra.vue';
 const t = computed(() => nav.pilha[nav.pilha.length - 1]);
 // chave: trocar de música/repertório recria a tela (estado limpo)
 const chave = computed(() => JSON.stringify(t.value));
+
+// ao vivo, seguindo: quem conduz abriu/trocou de música -> abre aqui também
+// (no editor não atropela; abre quando voltar p/ a música)
+ouvir({
+  nav: (n) => {
+    const a = atual();
+    if (a.nome === 'editar') return;
+    if (!be.songById(n.songId) && !live.songs[n.songId]) return;
+    const setlistId = n.setlistId ?? undefined;
+    if (a.nome === 'musica') {
+      if (a.id !== n.songId || a.setlistId !== setlistId) {
+        trocar({ nome: 'musica', id: n.songId, setlistId });
+        window.scrollTo(0, 0);
+      }
+    } else abrir({ nome: 'musica', id: n.songId, setlistId });
+  },
+});
 </script>
 
 <template>
@@ -32,5 +54,7 @@ const chave = computed(() => JSON.stringify(t.value));
   <Versoes v-else-if="t.nome === 'versoes'" :key="chave" :id="t.id" :acervo="t.acervo" />
   <Grupo v-else-if="t.nome === 'grupo'" />
   <Atividade v-else-if="t.nome === 'atividade'" />
+  <Config v-else-if="t.nome === 'config'" />
+  <AoVivo v-else-if="t.nome === 'aovivo'" />
   <Imprimir v-else-if="t.nome === 'imprimir'" :key="chave" :setlist-id="t.setlistId" :song-id="t.songId" />
 </template>

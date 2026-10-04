@@ -1,6 +1,7 @@
 // Pilha de telas, como no app (abrir música, repertório, histórico...).
 // O "voltar" do navegador volta uma tela.
 import { reactive, watch } from 'vue';
+import { aplicarTema } from './tema';
 
 export type Tela =
   | { nome: 'inicio' }
@@ -14,7 +15,9 @@ export type Tela =
   | { nome: 'versoes'; id: string; acervo?: boolean }
   | { nome: 'grupo' }
   | { nome: 'atividade' }
-  | { nome: 'imprimir'; setlistId?: string; songId?: string };
+  | { nome: 'imprimir'; setlistId?: string; songId?: string }
+  | { nome: 'config' }
+  | { nome: 'aovivo' };
 
 export const nav = reactive({ pilha: [{ nome: 'inicio' }] as Tela[] });
 
@@ -53,6 +56,16 @@ export const prefs = reactive({
   fonte: ler<number>('fonte', 1),
   soLetra: ler<boolean>('soLetra', false),
   aba: ler<'songs' | 'setlists'>('aba', 'songs'),
+  /** cor do tema (ARGB, como no app) */
+  cor: ler<number>('cor', 0xff3d5afe),
+  /** px/s da auto-rolagem quando a música não tem a sua */
+  velocidade: ler<number>('velocidade', 28),
+  /** quanto um toque no pedal rola (fração da tela) */
+  passo: ler<number>('passo', 0.4),
+  /** teclas do pedal (KeyboardEvent.code); vazio = padrão */
+  pedal: ler<{ next: string[]; prev: string[] }>('pedal', { next: [], prev: [] }),
+  /** nome deste navegador na sessão ao vivo */
+  aparelho: ler<string>('aparelho', ''),
 });
 
 watch(prefs, (p) => {
@@ -60,4 +73,5 @@ watch(prefs, (p) => {
     try { localStorage.setItem('mymusic.' + k, JSON.stringify(v)); } catch { /* sem storage */ }
   }
   document.documentElement.dataset.theme = p.tema;
+  aplicarTema(p.cor, p.tema);
 }, { deep: true, immediate: true });

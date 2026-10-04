@@ -125,6 +125,8 @@ function ouvirGrupos() {
   subGrupos = onSnapshot(
     query(collection(db, 'grupos'), where('membros', 'array-contains', eu.value)),
     (q) => {
+      // grupo recém-criado ainda não confirmado: abrir já daria "sem permissão"
+      if (q.metadata.hasPendingWrites) return;
       // sem grupo nenhum (confirmado pelo servidor): cria a biblioteca pessoal
       if (!q.docs.length && !q.metadata.fromCache && !criando) {
         criando = true;
@@ -196,7 +198,24 @@ export function setCampos(s: Song, campos: Record<string, unknown>) {
   updateDoc(doc(col('musicas'), s.id), campos).catch(falhou);
 }
 
-function abrirGrupo(g: Grupo) {
+// leitura negada logo após criar/entrar no grupo (regras ainda não veem o
+// membro): tenta de novo algumas vezes antes de mostrar erro, como o app
+let tentativas = 0, retryT = 0;
+function erroOuvinte(e: unknown) {
+  const g = cloud.grupo;
+  if ((e as { code?: string }).code === 'permission-denied' && g && tentativas < 4) {
+    clearTimeout(retryT);
+    retryT = window.setTimeout(() => { if (cloud.grupo?.id === g.id) abrirGrupo(g, true); }, 1000 * 2 ** tentativas++);
+    return;
+  }
+  falhou(e);
+}
+
+function abrirGrupo(g: Grupo, retentativa = false) {
+  if (!retentativa) tentativas = 0;
+  if (cloud.grupo?.id === g.id && subs.length && !retentativa) { cloud.grupo = g; return; }
+  subs.forEach((u) => u());
+  subs = [];
   cloud.grupo = g;
   cloud.carregou = false;
   gravarPref(g.id);
@@ -212,7 +231,8 @@ function abrirGrupo(g: Grupo) {
     }
     cloud.songs = vivos;
     cloud.carregou = true;
-  }, falhou));
+    tentativas = 0;
+  }, erroOuvinte));
   subs.push(onSnapshot(col('repertorios'), (q) => {
     const vivos: Setlist[] = [];
     for (const d of q.docs) {
@@ -220,13 +240,13 @@ function abrirGrupo(g: Grupo) {
       if (!d.data().apagada) vivos.push(setlistFromRaw(d.data() as RawSetlist));
     }
     cloud.setlists = vivos;
-  }, falhou));
+  }, erroOuvinte));
   subs.push(onSnapshot(col('confianca'), (q) => {
     cloud.confianca = Object.fromEntries(q.docs.map((d) => [d.id, d.data().editores ?? []]));
-  }, falhou));
+  }, erroOuvinte));
   subs.push(onSnapshot(col('pessoas'), (q) => {
     cloud.nomes = Object.fromEntries(q.docs.map((d) => [d.id, d.data().nome ?? '']));
-  }, falhou));
+  }, erroOuvinte));
   // pendentes (p/ quem decide) + as minhas, de qualquer situação
   const pend = new Map<string, Sugestao>(), minhas = new Map<string, Sugestao>();
   const junta = () => {
@@ -245,10 +265,10 @@ function abrirGrupo(g: Grupo) {
   };
   subs.push(onSnapshot(query(col('sugestoes'), where('status', '==', 'pendente')), (q) => {
     pend.clear(); q.docs.forEach((d) => pend.set(d.id, lerSug(d))); junta();
-  }, falhou));
+  }, erroOuvinte));
   subs.push(onSnapshot(query(col('sugestoes'), where('por', '==', eu.value)), (q) => {
     minhas.clear(); q.docs.forEach((d) => minhas.set(d.id, lerSug(d))); junta();
-  }, falhou));
+  }, erroOuvinte));
   setDoc(doc(col('pessoas'), eu.value), { nome: cloud.user!.nome, visto: serverTimestamp() })
     .catch(falhou);
 }
