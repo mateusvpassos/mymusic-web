@@ -4,13 +4,11 @@ import { ref, computed } from 'vue';
 import AppBar from '../components/AppBar.vue';
 import Prompt from '../components/Prompt.vue';
 import {
-  cloud, ativa, eu, souDonoDoGrupo, nomeDe, entrar, sair, criarGrupo, escolherGrupo,
-  convidar, remover, setConfianca, enviar, naoEstaoNoGrupo, disponivel, entrarTeste,
+  cloud, eu, souDonoDoGrupo, nomeDe, entrar, sair, criarGrupo, escolherGrupo,
+  convidar, remover, setConfianca, disponivel, entrarTeste,
 } from '../cloud';
 import { emulador } from '../firebase';
 import { acervo, obras, naoPublicadas, publicar } from '../acervo';
-import * as store from '../store';
-import { state } from '../store';
 
 const convite = ref('');
 const emailTeste = ref('');
@@ -22,18 +20,12 @@ function alternaConfianca(m: string) {
   setConfianca(meus.value.includes(m) ? meus.value.filter((x) => x !== m) : [...meus.value, m]);
 }
 
-// migração: o que está no Drive (modo antigo) e ainda não está no grupo
-const falta = computed(() => (state.signedIn && ativa.value && cloud.carregou
-  ? naoEstaoNoGrupo(state.data.songs, state.data.setlists) : null));
-const enviados = ref<{ songs: number; sets: number } | null>(null);
+// as minhas músicas que ainda não estão no acervo geral
 const publicadas = ref(0);
 function publicarTodas() {
   const l = [...naoPublicadas.value];
-  l.forEach((s) => publicar(s));
+  l.forEach((x) => publicar(x));
   publicadas.value = l.length;
-}
-function trazerDoDrive() {
-  enviados.value = enviar(state.data.songs, state.data.setlists);
 }
 </script>
 
@@ -43,7 +35,7 @@ function trazerDoDrive() {
     <div class="wrap">
       <div v-if="!disponivel" class="card">
         <h3 class="section-title"><span class="ms">cloud_off</span>Nuvem ainda não configurada</h3>
-        <p>Falta criar o projeto no console do Firebase. Enquanto isso o editor usa o Google Drive.</p>
+        <p>Falta configurar o Firebase.</p>
       </div>
 
       <div v-else-if="!cloud.user" class="card">
@@ -143,22 +135,6 @@ function trazerDoDrive() {
             </template>
           </div>
 
-          <div class="card">
-            <h3 class="section-title"><span class="ms">cloud_upload</span>Trazer do Google Drive</h3>
-            <template v-if="!state.signedIn">
-              <p>Manda para o grupo as músicas e repertórios que estão no Drive (o que o app usava até agora).
-                Quem manda vira o dono.</p>
-              <button class="btn tonal" @click="store.signIn()"><span class="ms">add_to_drive</span>Abrir o Drive</button>
-            </template>
-            <template v-else-if="falta">
-              <p v-if="enviados">Enviado: {{ enviados.songs }} música(s) e {{ enviados.sets }} repertório(s).</p>
-              <p v-else-if="!falta.songs && !falta.sets">Tudo do Drive já está no grupo.</p>
-              <template v-else>
-                <p>{{ falta.songs }} música(s) e {{ falta.sets }} repertório(s) do Drive ainda não estão no grupo.</p>
-                <button class="btn" @click="trazerDoDrive"><span class="ms">upload</span>Enviar para o grupo</button>
-              </template>
-            </template>
-          </div>
         </template>
       </template>
       <p v-if="cloud.erro" class="error">{{ cloud.erro }}</p>

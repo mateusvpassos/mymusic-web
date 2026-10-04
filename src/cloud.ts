@@ -125,6 +125,12 @@ function ouvirGrupos() {
   subGrupos = onSnapshot(
     query(collection(db, 'grupos'), where('membros', 'array-contains', eu.value)),
     (q) => {
+      // sem grupo nenhum (confirmado pelo servidor): cria a biblioteca pessoal
+      if (!q.docs.length && !q.metadata.fromCache && !criando) {
+        criando = true;
+        criarGrupo(`Biblioteca de ${cloud.user!.nome}`).finally(() => { criando = false; });
+        return;
+      }
       cloud.grupos = q.docs.map((d) => ({
         id: d.id,
         nome: d.data().nome ?? '',
@@ -143,6 +149,8 @@ function ouvirGrupos() {
     falhou,
   );
 }
+
+let criando = false;
 
 export async function criarGrupo(nome: string) {
   if (!db || !cloud.user) return;

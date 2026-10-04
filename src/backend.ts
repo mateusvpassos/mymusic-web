@@ -1,9 +1,6 @@
-// As telas falam só com isto. Com o grupo da nuvem ligado, cada mudança vai
-// direto (com versão e permissão); sem ele, vale o modo antigo do Drive
-// (edita aqui e "Salvar no Drive").
+// As telas falam só com isto. Tudo fica no Firebase: a biblioteca é o grupo
+// em uso (quem entra sem grupo ganha a "Biblioteca de <nome>" sozinho).
 import { computed } from 'vue';
-import * as store from './store';
-import { state } from './store';
 import * as nuvem from './cloud';
 import { cloud, ativa } from './cloud';
 import type { Song, Setlist } from './types';
@@ -11,9 +8,9 @@ import { emptyMeta } from './types';
 import { uid } from './chordEngine';
 
 export const modoNuvem = ativa;
-export const songs = computed<Song[]>(() => (ativa.value ? cloud.songs : state.data.songs));
-export const setlists = computed<Setlist[]>(() => (ativa.value ? cloud.setlists : state.data.setlists));
-export const pronto = computed(() => ativa.value || state.signedIn);
+export const songs = computed<Song[]>(() => cloud.songs);
+export const setlists = computed<Setlist[]>(() => cloud.setlists);
+export const pronto = ativa;
 
 export const songById = (id: string) => songs.value.find((s) => s.id === id);
 export const setlistById = (id: string) => setlists.value.find((s) => s.id === id);
@@ -22,52 +19,57 @@ export const podeEditarSong = nuvem.podeEditarSong;
 export const podeEditarSetlist = nuvem.podeEditarSetlist;
 export const souDono = nuvem.souDono;
 
+const agora = () => new Date().toISOString();
+
+/** Música nova ainda fora da lista — entra com salvarSong() ao confirmar. */
+export function rascunhoSong(): Song {
+  return {
+    id: uid(), title: 'Nova música', artist: '', key: 'C', capo: 0,
+    sections: [], tags: [], notes: '', bpm: 0, scrollSpeed: 0,
+    tempos: [], momentos: [], versao: 0, obra: '', nomeVersao: '', baseId: '', baseRev: 0,
+    ...emptyMeta(), updatedAt: agora(),
+  };
+}
+
 export function salvarSong(s: Song) {
-  if (ativa.value) nuvem.putSong(s);
-  else store.putSong(s);
+  nuvem.putSong(s);
 }
 
 /** Muda campos de ligação (baseId/baseRev) sem contar como edição. */
 export function salvarCampos(s: Song, campos: Partial<Song>) {
   Object.assign(s, campos);
-  if (ativa.value) nuvem.setCampos(s, campos);
-  else state.dirty = true;
+  nuvem.setCampos(s, campos);
 }
 
 export function excluirSong(id: string) {
-  if (ativa.value) {
-    nuvem.deleteSong(id);
-    // tira dos meus repertórios também
-    for (const sl of cloud.setlists)
-      if (sl.songIds.includes(id) && nuvem.podeEditarSetlist(sl))
-        nuvem.putSetlist({ ...sl, songIds: sl.songIds.filter((x) => x !== id) });
-  } else store.deleteSong(id);
+  nuvem.deleteSong(id);
+  // tira dos meus repertórios também
+  for (const sl of cloud.setlists)
+    if (sl.songIds.includes(id) && nuvem.podeEditarSetlist(sl))
+      nuvem.putSetlist({ ...sl, songIds: sl.songIds.filter((x) => x !== id) });
 }
 
 export function salvarSetlist(sl: Setlist) {
-  if (ativa.value) nuvem.putSetlist(sl);
-  else store.touchSetlist(sl);
+  nuvem.putSetlist(sl);
 }
 
 export function novoSetlist(name: string, date: string | null): Setlist {
   const sl: Setlist = {
     id: uid(), name, songIds: [], transpose: {}, moments: {}, date,
-    ...emptyMeta(), updatedAt: new Date().toISOString(),
+    ...emptyMeta(), updatedAt: agora(),
   };
-  if (ativa.value) nuvem.putSetlist(sl);
-  else { state.data.setlists.unshift(sl); state.dirty = true; }
+  nuvem.putSetlist(sl);
   return sl;
 }
 
 export function excluirSetlist(id: string) {
-  if (ativa.value) nuvem.deleteSetlist(id);
-  else store.deleteSetlist(id);
+  nuvem.deleteSetlist(id);
 }
 
 export function duplicarSong(s: Song): Song {
   const c: Song = {
     ...JSON.parse(JSON.stringify(s)), id: uid(), title: `${s.title} (cópia)`,
-    ...emptyMeta(), versao: 0, updatedAt: new Date().toISOString(),
+    ...emptyMeta(), versao: 0, baseId: '', baseRev: 0, updatedAt: agora(),
   };
   salvarSong(c);
   return c;
@@ -76,9 +78,8 @@ export function duplicarSong(s: Song): Song {
 export function duplicarSetlist(sl: Setlist): Setlist {
   const c: Setlist = {
     ...JSON.parse(JSON.stringify(sl)), id: uid(), name: `${sl.name} (cópia)`,
-    ...emptyMeta(), updatedAt: new Date().toISOString(),
+    ...emptyMeta(), updatedAt: agora(),
   };
-  if (ativa.value) nuvem.putSetlist(c);
-  else { state.data.setlists.unshift(c); state.dirty = true; }
+  nuvem.putSetlist(c);
   return c;
 }

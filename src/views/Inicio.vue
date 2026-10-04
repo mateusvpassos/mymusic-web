@@ -5,13 +5,12 @@ import AppBar from '../components/AppBar.vue';
 import Prompt from '../components/Prompt.vue';
 import { abrir, prefs } from '../nav';
 import * as be from '../backend';
-import * as store from '../store';
-import { state } from '../store';
-import { cloud, ativa, eu, nomeDe, paraDecidir, disponivel } from '../cloud';
+import { cloud, ativa, eu, nomeDe, paraDecidir, disponivel, entrar } from '../cloud';
 import { paraDecidirA } from '../acervo';
 import { searchSongs, fold, fmtData } from '../core';
 import { usoMusicas, quando, temposDe, proximoDomingo } from '../liturgia';
 import type { Song, Setlist } from '../types';
+import { emulador } from '../firebase';
 // música nova só entra na lista ao salvar (o editor pega daqui)
 import { rascunho } from '../rascunho';
 
@@ -56,7 +55,7 @@ function meta(s: Song): string {
 }
 
 function novaMusica() {
-  const d = store.draftSong();
+  const d = be.rascunhoSong();
   abrir({ nome: 'editar', id: d.id, nova: true });
   rascunho.value = d;
 }
@@ -104,33 +103,19 @@ const fecharMenu = () => (menu.value = null);
       </button>
     </AppBar>
 
-    <!-- modo Drive (sem grupo): salvar manual, como antes -->
-    <div v-if="!ativa && state.signedIn" class="drive no-print">
-      <span class="muted"><span class="ms">add_to_drive</span> Google Drive</span>
-      <span v-if="state.dirty" class="sujo">● não salvo</span>
-      <button class="btn" :disabled="state.saving || !state.dirty" @click="store.saveToDrive()">
-        {{ state.saving ? 'Salvando…' : 'Salvar no Drive' }}
-      </button>
-      <button class="btn tonal" :disabled="state.loading" @click="store.loadFromDrive()">Recarregar</button>
-      <button class="btn text" @click="store.signOut()">Sair</button>
-    </div>
-    <p v-if="state.error" class="error wrap">⚠ {{ state.error }}</p>
     <p v-if="cloud.erro" class="error wrap">⚠ {{ cloud.erro }}</p>
 
     <div v-if="!be.pronto.value" class="wrap"><div class="entrar card">
-      <h2 class="section-title"><span class="ms">login</span>Entrar</h2>
-      <p v-if="disponivel">
-        Com um grupo compartilhado, as músicas ficam na nuvem: quem criou é o dono, os outros
-        mandam sugestões e tudo tem histórico.
-      </p>
-      <div class="acoes-entrar">
-        <button v-if="disponivel" class="btn" @click="abrir({ nome: 'grupo' })">
-          <span class="ms">groups</span>Grupo compartilhado
-        </button>
-        <button class="btn tonal" @click="store.signIn()">
-          <span class="ms">add_to_drive</span>Usar o Google Drive (modo antigo)
-        </button>
-      </div>
+      <template v-if="!cloud.user">
+        <h2 class="section-title"><span class="ms">login</span>Entrar</h2>
+        <p>Entre com a sua conta Google para ver as suas músicas.</p>
+        <div class="acoes-entrar">
+          <button class="btn" @click="disponivel && (emulador ? abrir({ nome: 'grupo' }) : entrar())">
+            <span class="ms">account_circle</span>Entrar com Google
+          </button>
+        </div>
+      </template>
+      <p v-else class="muted">Carregando a sua biblioteca…</p>
     </div></div>
 
     <template v-else>
