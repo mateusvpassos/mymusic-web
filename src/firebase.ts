@@ -4,7 +4,7 @@ import { initializeApp, type FirebaseApp, type FirebaseOptions } from 'firebase/
 import { getAuth, connectAuthEmulator, type Auth } from 'firebase/auth';
 import {
   initializeFirestore, connectFirestoreEmulator, persistentLocalCache,
-  persistentMultipleTabManager, type Firestore,
+  persistentMultipleTabManager, disableNetwork, enableNetwork, type Firestore,
 } from 'firebase/firestore';
 
 /**
@@ -46,3 +46,17 @@ if (opts) {
 }
 
 export const disponivel = app !== null;
+
+// Aba escondida/PC dormindo: a conexão cai e o Firestore só volta depois de
+// uma espera crescente. Voltou a aba (ou a rede) = reconecta na hora.
+let escondidaEm = 0;
+async function reconectar() {
+  if (!db) return;
+  try { await disableNetwork(db); await enableNetwork(db); } catch { /* segue */ }
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { escondidaEm = Date.now(); return; }
+  if (escondidaEm && Date.now() - escondidaEm > 10000) reconectar();
+  escondidaEm = 0;
+});
+window.addEventListener('online', reconectar);
